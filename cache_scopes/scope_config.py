@@ -1,12 +1,14 @@
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
 
-from protocols.scope_config import IScopeConfig
+from protocols.scope import IScope
 
 
 @dataclass
 class ScopeLevel:
-    """Representa um nível na hierarquia de escopo."""
+    """Represents a level in the scope hierarchy."""
+    __slots__ = ('name', 'param_name', 'children')
+    
     name: str
     param_name: str
     children: Optional[List['ScopeLevel']] = None
@@ -18,31 +20,33 @@ class ScopeLevel:
             self.children = []
 
 
-class ScopeConfig(IScopeConfig):
+class ScopeConfig(IScope):
     """
-    Configuração de escopo hierárquico para cache com suporte a múltiplas árvores.
+    Hierarchical scope configuration for cache with multiple tree support.
     
-    Exemplo:
-        # Múltiplas árvores independentes
-        org_tree = ScopeLevel("organization", "org_id", [
-            ScopeLevel("user", "user_id")
-        ])
-        car_tree = ScopeLevel("car", "car_id", [
-            ScopeLevel("door", "door_id", [
-                ScopeLevel("tire", "tire_id")
+    Example:
+        ``` python
+            # Multiple independent trees
+            org_tree = ScopeLevel("organization", "org_id", [
+                ScopeLevel("user", "user_id")
             ])
-        ])
-        config = ScopeConfig([org_tree, car_tree])
+            car_tree = ScopeLevel("car", "car_id", [
+                ScopeLevel("door", "door_id", [
+                    ScopeLevel("tire", "tire_id")
+                ])
+            ])
+            config = ScopeConfig([org_tree, car_tree])
+        ```
     """
+    __slots__ = ('_root_levels', '_all_levels', '_level_names', '_param_mapping')
     
     def __init__(self, root_levels: Optional[List[ScopeLevel]] = None):
         """
-        Inicializa a configuração de escopo com global como root implícito.
+        Initializes scope configuration with global as implicit root.
         
         Args:
-            root_levels: Lista de níveis filhos do global (opcional).
+            root_levels: List of global child levels (optional).
         """
-        # Global sempre existe como root implícito
         global_level = ScopeLevel("global", "", root_levels or [])
         
         self._root_levels = [global_level]
@@ -50,12 +54,11 @@ class ScopeConfig(IScopeConfig):
         self._level_names = [level.name for level in self._all_levels]
         self._param_mapping = {level.name: level.param_name for level in self._all_levels}
         
-        # Validar nomes únicos (exceto global que sempre existe)
         if len(set(self._level_names)) != len(self._level_names):
             raise ValueError("Scope level names must be unique")
     
     def _flatten_levels(self, levels: List[ScopeLevel]) -> List[ScopeLevel]:
-        """Achata a árvore de níveis em uma lista."""
+        """Flattens the level tree into a list."""
         result = []
         for level in levels:
             result.append(level)
@@ -65,31 +68,31 @@ class ScopeConfig(IScopeConfig):
     
     @property
     def root_levels(self) -> List[ScopeLevel]:
-        """Retorna os níveis raiz de escopo configurados."""
+        """Returns the configured root scope levels."""
         return self._root_levels.copy()
     
     @property
     def all_levels(self) -> List[ScopeLevel]:
-        """Retorna todos os níveis de escopo (achatados)."""
+        """Returns all scope levels (flattened)."""
         return self._all_levels.copy()
     
     @property
     def level_names(self) -> List[str]:
-        """Retorna os nomes dos níveis de escopo."""
+        """Returns the scope level names."""
         return self._level_names.copy()
     
     def get_param_name(self, level_name: str) -> str:
         """
-        Retorna o nome do parâmetro para um nível específico.
+        Returns the parameter name for a specific level.
         
         Args:
-            level_name: Nome do nível de escopo.
+            level_name: Name of the scope level.
             
         Returns:
-            Nome do parâmetro correspondente.
+            Corresponding parameter name.
             
         Raises:
-            ValueError: Se o nível não existir.
+            ValueError: If the level doesn't exist.
         """
         if level_name not in self._param_mapping:
             raise ValueError(f"Unknown scope level: {level_name}")
@@ -97,13 +100,13 @@ class ScopeConfig(IScopeConfig):
     
     def build_scope_path(self, scope_params: Dict[str, Any]) -> str:
         """
-        Constrói o caminho do escopo baseado nos parâmetros fornecidos.
+        Builds the scope path based on provided parameters.
         
         Args:
-            scope_params: Dicionário com os parâmetros de escopo.
+            scope_params: Dictionary with scope parameters.
             
         Returns:
-            String representando o caminho hierárquico do escopo.
+            String representing the hierarchical scope path.
         """
         def build_path_recursive(levels: List[ScopeLevel], path_parts: List[str]) -> List[str]:
             for level in levels:
@@ -122,14 +125,14 @@ class ScopeConfig(IScopeConfig):
     
     def validate_scope_params(self, target_level: str, scope_params: Dict[str, Any]) -> None:
         """
-        Valida se os parâmetros necessários estão presentes para o nível alvo.
+        Validates that required parameters are present for the target level.
         
         Args:
-            target_level: Nível de escopo desejado.
-            scope_params: Parâmetros fornecidos.
+            target_level: Desired scope level.
+            scope_params: Provided parameters.
             
         Raises:
-            ValueError: Se parâmetros obrigatórios estiverem ausentes.
+            ValueError: If mandatory parameters are missing.
         """
         if target_level == "global":
             return
@@ -137,18 +140,16 @@ class ScopeConfig(IScopeConfig):
         if target_level not in self._level_names:
             raise ValueError(f"Unknown scope level: {target_level}")
         
-        # Encontrar o caminho até o nível alvo
         path_to_target = self._find_path_to_level(target_level)
         if not path_to_target:
             raise ValueError(f"Cannot find path to scope level: {target_level}")
         
-        # Validar que todos os níveis no caminho têm parâmetros
         for level in path_to_target:
             if level.param_name and (level.param_name not in scope_params or scope_params[level.param_name] is None):
                 raise ValueError(f"Missing required parameter '{level.param_name}' for scope level '{level.name}'")
     
     def _find_path_to_level(self, target_level: str) -> Optional[List[ScopeLevel]]:
-        """Encontra o caminho hierárquico até um nível específico."""
+        """Finds the hierarchical path to a specific level."""
         def search_recursive(levels: List[ScopeLevel], path: List[ScopeLevel]) -> Optional[List[ScopeLevel]]:
             for level in levels:
                 current_path = path + [level]
@@ -164,13 +165,13 @@ class ScopeConfig(IScopeConfig):
     
     def get_parent_scope_path(self, scope_path: str) -> Optional[str]:
         """
-        Retorna o caminho do escopo pai.
+        Returns the parent scope path.
         
         Args:
-            scope_path: Caminho do escopo atual.
+            scope_path: Current scope path.
             
         Returns:
-            Caminho do escopo pai ou None se for global.
+            Parent scope path or None if global.
         """
         if scope_path == "global":
             return None
@@ -183,14 +184,14 @@ class ScopeConfig(IScopeConfig):
     
     def is_descendant_of(self, child_path: str, parent_path: str) -> bool:
         """
-        Verifica se um escopo é descendente de outro.
+        Checks if one scope is a descendant of another.
         
         Args:
-            child_path: Caminho do escopo filho.
-            parent_path: Caminho do escopo pai.
+            child_path: Child scope path.
+            parent_path: Parent scope path.
             
         Returns:
-            True se child_path é descendente de parent_path.
+            True if child_path is descendant of parent_path.
         """
         if parent_path == "global":
             return True
@@ -201,7 +202,7 @@ class ScopeConfig(IScopeConfig):
         return child_path.startswith(parent_path + "/") or child_path == parent_path
     
     def get_scope_tree_for_level(self, level_name: str) -> Optional[ScopeLevel]:
-        """Retorna a árvore raiz que contém o nível especificado."""
+        """Returns the root tree that contains the specified level."""
         def find_root(levels: List[ScopeLevel], target: str) -> Optional[ScopeLevel]:
             for root in levels:
                 if self._level_exists_in_tree(root, target):
@@ -211,11 +212,9 @@ class ScopeConfig(IScopeConfig):
         return find_root(self._root_levels, level_name)
     
     def _level_exists_in_tree(self, root: ScopeLevel, target: str) -> bool:
-        """Verifica se um nível existe na árvore."""
+        """Checks if a level exists in the tree."""
         if root.name == target:
             return True
         if root.children:
             return any(self._level_exists_in_tree(child, target) for child in root.children)
         return False
-
-

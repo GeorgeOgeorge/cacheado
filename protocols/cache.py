@@ -209,4 +209,3 @@ class ICache(Protocol):
             cleanup_interval (int): Interval (in seconds) for background cleanup.
         """
         ...
-

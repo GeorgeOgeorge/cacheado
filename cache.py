@@ -9,7 +9,7 @@ from typing import Any, Callable, DefaultDict, Dict, Optional, Tuple, Union
 
 from typing_extensions import ParamSpec, TypeVar
 
-from cache_scopes.scope_config import DEFAULT_SCOPE_CONFIG, ScopeConfig
+from cache_scopes.scope_config import ScopeConfig
 from protocols.cache_policy_manager import ICachePolicyManager
 from protocols.storage_provider import IStorageProvider
 from cache_types import _CacheKey, _CacheScope, _CacheValue
@@ -39,8 +39,8 @@ class Cache:
     def __init__(self) -> None:
         """Initializes the cache orchestrator's state."""
         self._storage: Optional[IStorageProvider] = None
-        self._policy_manager: ICachePolicyManager
-        self._scope_config: ScopeConfig
+        self._policy_manager: Optional[ICachePolicyManager] = None
+        self._scope_config: Optional[ScopeConfig] = None
         self._calculation_locks: DefaultDict[_CacheKey, threading.Lock] = defaultdict(threading.Lock)
         self._hits: int = 0
         self._misses: int = 0
@@ -59,7 +59,7 @@ class Cache:
         Args:
             backend (IStorageProvider): The storage backend (e.g., InMemoryStorageProvider).
             policy_manager (ICachePolicyManager): Policy manager (required).
-            scope_config (Optional[ScopeConfig]): Scope configuration (defaults to DEFAULT_SCOPE_CONFIG).
+            scope_config (ScopeConfig): Scope configuration (defaults to DEFAULT_SCOPE_CONFIG).
         """
         if self._policy_manager is None:
             with self._instance_lock:
@@ -109,7 +109,7 @@ class Cache:
         Returns:
             Optional[Any]: The cached value or None if not found/expired.
         """
-        if not self._storage:
+        if not self._storage or not self._policy_manager:
             logging.error("Cache used before 'configure()' was called.")
             return None
             
@@ -148,7 +148,7 @@ class Cache:
             namespace (str): The namespace of the key.
             max_items (Optional[int]): The max_items limit for this namespace.
         """
-        if not self._storage:
+        if not self._storage or not self._policy_manager:
             logging.error("Cache used before 'configure()' was called.")
             return
 
@@ -173,7 +173,7 @@ class Cache:
             namespace (str): The namespace of the key.
             notify_policy (bool): Whether to notify the policy manager.
         """
-        if not self._storage:
+        if not self._storage or not self._policy_manager:
             logging.error("Cache used before 'configure()' was called.")
             return
             
@@ -232,22 +232,20 @@ class Cache:
         Returns:
             str: The scope prefix path.
         """
-
-        
-        # Merge kwargs into scope_params for backward compatibility
         all_params = scope_params or {}
         all_params.update(kwargs)
         
+        if not self._scope_config:
+            raise RuntimeError("Cache not configured")
+            
         if scope == "global":
             return "global"
         
         if isinstance(scope, str):
-            # Single scope level
             self._scope_config.validate_scope_params(scope, all_params)
             return self._scope_config.build_scope_path(all_params)
         elif isinstance(scope, tuple):
-            # Tuple represents a path through the hierarchy
-            target_level = scope[-1]  # Last element is the target level
+            target_level = scope[-1]
             self._scope_config.validate_scope_params(target_level, all_params)
             return self._scope_config.build_scope_path(all_params)
         else:
@@ -374,7 +372,6 @@ class Cache:
             
             with calc_lock:
                 try:
-                    # Check cache again after acquiring lock to avoid race condition
                     cached_value = self._internal_get(key, namespace)
                     if cached_value is not None:
                         return cached_value
@@ -537,9 +534,9 @@ class Cache:
                 if self._storage:
                     self._storage.clear()
                 
-                self._policy_manager.notify_clear()
+                if self._policy_manager:
+                    self._policy_manager.notify_clear()
                 
-                # Reset stats and calculation locks
                 self._calculation_locks.clear()
                 self._hits = 0
                 self._misses = 0
@@ -634,8 +631,9 @@ class Cache:
         with self._instance_lock:
             g_size = 0
             ns_count = 0
-            g_size = self._policy_manager.get_global_size()
-            ns_count = self._policy_manager.get_namespace_count()
+            if self._policy_manager:
+                g_size = self._policy_manager.get_global_size()
+                ns_count = self._policy_manager.get_namespace_count()
 
             return {
                 "hits": self._hits,
@@ -666,7 +664,7 @@ class Cache:
         Returns:
             int: The number of items successfully evicted.
         """
-        if not self._storage:
+        if not self._storage or not self._policy_manager or not self._scope_config:
             logging.error("Cache used before 'configure()' was called.")
             return 0
             
@@ -682,7 +680,7 @@ class Cache:
         evicted_count = 0
         
         for key in all_keys:
-            if key[0] == prefix or self._scope_config.is_descendant_of(key[0], prefix):
+            if key[0] == prefix or (self._scope_config and self._scope_config.is_descendant_of(key[0], prefix)):
                 namespace = key[1]
                 self._internal_evict(key, namespace, notify_policy=True)
                 evicted_count += 1
@@ -706,7 +704,7 @@ def create_cache(
     Args:
         backend: Storage backend (required)
         policy_manager: Policy manager (required)
-        scope_config: Scope configuration (defaults to SimpleScopeConfig)
+        scope_config: Scope configuration
         
     Returns:
         Configured Cache instance

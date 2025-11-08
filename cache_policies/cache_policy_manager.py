@@ -49,7 +49,6 @@ class CachePolicyManager(ICachePolicyManager):
         self._cleanup_thread: Optional[threading.Thread] = None
         logging.info(f"CachePolicyManager initialized with policy={policy.__class__.__name__}, max_size={max_size}, cleanup_interval={cleanup_interval}s")
 
-
     def start_background_cleanup(self) -> None:
         """
         Starts the background daemon thread for cache cleanup.
@@ -68,7 +67,6 @@ class CachePolicyManager(ICachePolicyManager):
             logging.error(f"Failed to start cache cleanup thread: {e}")
             raise
 
-
     def stop_background_cleanup(self) -> None:
         """Stops the background cleanup thread gracefully."""
         try:
@@ -78,7 +76,6 @@ class CachePolicyManager(ICachePolicyManager):
                 logging.info("Cache cleanup thread stopped.")
         except Exception as e:
             logging.error(f"Error stopping cache cleanup thread: {e}")
-
 
     def _cleanup_loop(self) -> None:
         """
@@ -110,7 +107,6 @@ class CachePolicyManager(ICachePolicyManager):
             except Exception as e:
                 logging.error(f"Error in cache cleanup thread: {e}", exc_info=True)
 
-
     def notify_set(
         self,
         key: _CacheKey,
@@ -134,7 +130,6 @@ class CachePolicyManager(ICachePolicyManager):
             logging.error(f"Error in policy notify_set: {e}")
             return None
 
-
     def notify_get(self, key: _CacheKey, namespace: str) -> None:
         """
         Delegates 'get' notification to the eviction policy.
@@ -147,7 +142,6 @@ class CachePolicyManager(ICachePolicyManager):
             self._policy.notify_get(key, namespace)
         except Exception as e:
             logging.error(f"Error in policy notify_get: {e}")
-
 
     def notify_evict(self, key: _CacheKey, namespace: str) -> None:
         """
@@ -162,7 +156,6 @@ class CachePolicyManager(ICachePolicyManager):
         except Exception as e:
             logging.error(f"Error in policy notify_evict: {e}")
         
-        
     def notify_clear(self) -> None:
         """Delegates 'clear' notification to the eviction policy."""
         try:
@@ -170,7 +163,6 @@ class CachePolicyManager(ICachePolicyManager):
         except Exception as e:
             logging.error(f"Error in policy notify_clear: {e}")
       
-        
     def get_namespace_count(self) -> int:
         """
         Gets the total number of tracked namespaces from the policy.
@@ -180,7 +172,6 @@ class CachePolicyManager(ICachePolicyManager):
         """
         return self._policy.get_namespace_count()
        
-            
     def get_global_size(self) -> int:
         """
         Gets the global item count from the policy.
@@ -190,32 +181,17 @@ class CachePolicyManager(ICachePolicyManager):
         """
         return self._policy.get_global_size()
     
-    
     @property
     def policy(self) -> IEvictionPolicy:
-        """_summary_
-
-        Returns:
-            IEvictionPolicy: _description_
-        """
+        """Returns the eviction policy instance."""
         return self._policy
-        
         
     @property
     def global_max_size(self) -> Optional[int]:
-        """_summary_
-
-        Returns:
-            Optional[int]: _description_
-        """
+        """Returns the global maximum cache size."""
         return self._global_max_size
-
 
     @property
     def cleanup_interval(self) -> int:
-        """_summary_
-
-        Returns:
-            int: _description_
-        """
+        """Returns the cleanup interval in seconds."""
         return self._cleanup_interval
