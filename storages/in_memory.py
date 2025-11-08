@@ -12,7 +12,10 @@ class InMemory(IStorageProvider):
     Thread-safe, in-memory implementation of the IStorageProvider.
     
     Uses key-based locks for high-concurrency atomic operations.
+    Optimized with __slots__ for memory efficiency.
     """
+    __slots__ = ('_cache', '_key_locks', '_instance_lock')
+    
     def __init__(self):
         """Initializes the in-memory storage."""
         self._cache: Dict[_CacheKey, _CacheValue] = {}
@@ -30,8 +33,12 @@ class InMemory(IStorageProvider):
         Returns:
             Optional[_CacheValue]: The stored tuple, or None.
         """
-        with self._key_locks[key]:
-            return self._cache.get(key)
+        try:
+            with self._key_locks[key]:
+                return self._cache.get(key)
+        except Exception as e:
+            logging.error(f"Error getting key {key}: {e}")
+            return None
             
     def get_value_no_lock(self, key: _CacheKey) -> Optional[_CacheValue]:
         """
@@ -53,8 +60,12 @@ class InMemory(IStorageProvider):
             key (_CacheKey): The internal key to set.
             value (_CacheValue): The (value, expiry) tuple to store.
         """
-        with self._key_locks[key]:
-            self._cache[key] = value
+        try:
+            with self._key_locks[key]:
+                self._cache[key] = value
+        except Exception as e:
+            logging.error(f"Error setting key {key}: {e}")
+            raise
         
     def evict(self, key: _CacheKey) -> None:
         """
@@ -63,12 +74,15 @@ class InMemory(IStorageProvider):
         Args:
             key (_CacheKey): The internal key to evict.
         """
-        with self._key_locks[key]:
-            if key in self._cache:
-                del self._cache[key]
-            
-            if key in self._key_locks:
-                del self._key_locks[key]
+        try:
+            with self._key_locks[key]:
+                if key in self._cache:
+                    del self._cache[key]
+                
+                if key in self._key_locks:
+                    del self._key_locks[key]
+        except Exception as e:
+            logging.error(f"Error evicting key {key}: {e}")
 
     def get_all_keys(self) -> list[_CacheKey]:
         """
@@ -77,11 +91,18 @@ class InMemory(IStorageProvider):
         Returns:
             list[_CacheKey]: A list of all cache keys.
         """
-        with self._instance_lock:
-            return list(self._cache.keys())
+        try:
+            with self._instance_lock:
+                return list(self._cache.keys())
+        except Exception as e:
+            logging.error(f"Error getting all keys: {e}")
+            return []
         
     def clear(self) -> None:
         """Atomically clears the entire in-memory storage."""
-        with self._instance_lock:
-            self._cache.clear()
-            self._key_locks.clear()
+        try:
+            with self._instance_lock:
+                self._cache.clear()
+                self._key_locks.clear()
+        except Exception as e:
+            logging.error(f"Error clearing storage: {e}")

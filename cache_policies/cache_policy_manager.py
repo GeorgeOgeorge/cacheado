@@ -4,20 +4,30 @@ import time
 from typing import Optional
 
 from cache_types import _CacheKey
-from protocols.cache import ICache
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from cache import Cache
+from protocols.cache_policy_manager import ICachePolicyManager
 from protocols.eviction_policy import IEvictionPolicy
 
 
-class CachePolicyManager:
+class CachePolicyManager(ICachePolicyManager):
     """
     Manages cache maintenance policies (e.g., eviction, cleanup).
     
     This class handles background cleanup and delegates eviction logic
-    to an injected IEvictionPolicy.
+    to an injected IEvictionPolicy. Optimized with __slots__ for memory efficiency.
     """
+    __slots__ = (
+        '_cache', '_cleanup_interval', '_policy', '_global_max_size',
+        '_stop_event', '_cleanup_thread'
+    )
+    
     def __init__(
         self,
-        cache_instance: ICache,
+        cache_instance: 'Cache',
         cleanup_interval: int,
         policy: IEvictionPolicy,
         max_size: Optional[int] = None
@@ -26,7 +36,7 @@ class CachePolicyManager:
         Initializes the policy manager.
 
         Args:
-            cache_instance (Cache): The main Singleton Cache instance.
+            cache_instance (Cache): The main Cache instance.
             cleanup_interval (int): The interval (in seconds) for the cleanup loop.
             policy (IEvictionPolicy): The injected eviction policy (e.g., LRUPolicy).
             max_size (Optional[int]): The maximum number of items allowed globally.
@@ -44,23 +54,30 @@ class CachePolicyManager:
         """
         Starts the background daemon thread for cache cleanup.
         """
-        if self._cleanup_thread is None or not self._cleanup_thread.is_alive():
-            self._stop_event.clear()
-            self._cleanup_thread = threading.Thread(
-                target=self._cleanup_loop,
-                daemon=True,
-                name="CacheCleanupThread"
-            )
-            self._cleanup_thread.start()
-            logging.info("Cache cleanup thread started.")
+        try:
+            if self._cleanup_thread is None or not self._cleanup_thread.is_alive():
+                self._stop_event.clear()
+                self._cleanup_thread = threading.Thread(
+                    target=self._cleanup_loop,
+                    daemon=True,
+                    name="CacheCleanupThread"
+                )
+                self._cleanup_thread.start()
+                logging.info("Cache cleanup thread started.")
+        except Exception as e:
+            logging.error(f"Failed to start cache cleanup thread: {e}")
+            raise
 
 
     def stop_background_cleanup(self) -> None:
         """Stops the background cleanup thread gracefully."""
-        if self._cleanup_thread and self._cleanup_thread.is_alive():
-            self._stop_event.set()
-            self._cleanup_thread.join()
-            logging.info("Cache cleanup thread stopped.")
+        try:
+            if self._cleanup_thread and self._cleanup_thread.is_alive():
+                self._stop_event.set()
+                self._cleanup_thread.join()
+                logging.info("Cache cleanup thread stopped.")
+        except Exception as e:
+            logging.error(f"Error stopping cache cleanup thread: {e}")
 
 
     def _cleanup_loop(self) -> None:
@@ -82,12 +99,7 @@ class CachePolicyManager:
                 
                 for key in all_keys:
                     value_tuple = self._cache._get_value_no_lock_from_storage(key)
-                    if value_tuple is None:
-                        continue
-                    
-                    _, expiry = value_tuple
-                    
-                    if current_time > expiry:
+                    if value_tuple and current_time > value_tuple[1]:
                         namespace = key[1]
                         self._cache._internal_get(key, namespace)
                         expired_count += 1
@@ -116,7 +128,11 @@ class CachePolicyManager:
         Returns:
             Optional[_CacheKey]: A key to evict, or None.
         """
-        return self._policy.notify_set(key, namespace, max_items, self._global_max_size)
+        try:
+            return self._policy.notify_set(key, namespace, max_items, self._global_max_size)
+        except Exception as e:
+            logging.error(f"Error in policy notify_set: {e}")
+            return None
 
 
     def notify_get(self, key: _CacheKey, namespace: str) -> None:
@@ -127,7 +143,10 @@ class CachePolicyManager:
             key (_CacheKey): The key that was accessed.
             namespace (str): The namespace of the key.
         """
-        self._policy.notify_get(key, namespace)
+        try:
+            self._policy.notify_get(key, namespace)
+        except Exception as e:
+            logging.error(f"Error in policy notify_get: {e}")
 
 
     def notify_evict(self, key: _CacheKey, namespace: str) -> None:
@@ -138,12 +157,18 @@ class CachePolicyManager:
             key (_CacheKey): The key that was evicted.
             namespace (str): The namespace of the key.
         """
-        self._policy.notify_evict(key, namespace)
+        try:
+            self._policy.notify_evict(key, namespace)
+        except Exception as e:
+            logging.error(f"Error in policy notify_evict: {e}")
         
         
     def notify_clear(self) -> None:
         """Delegates 'clear' notification to the eviction policy."""
-        self._policy.notify_clear()
+        try:
+            self._policy.notify_clear()
+        except Exception as e:
+            logging.error(f"Error in policy notify_clear: {e}")
       
         
     def get_namespace_count(self) -> int:

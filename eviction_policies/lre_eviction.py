@@ -7,7 +7,12 @@ from protocols.eviction_policy import IEvictionPolicy
 
 
 class LRUEvictionPolicy(IEvictionPolicy):
-    """ Implements IEvictionPolicy using a thread-safe Least Recently Used (LRU) strategy."""
+    """ 
+    Implements IEvictionPolicy using a thread-safe Least Recently Used (LRU) strategy.
+    Optimized with __slots__ for memory efficiency.
+    """
+    __slots__ = ('_lock', '_lru_tracker', '_namespaced_lru_trackers')
+    
     def __init__(self):
         """Initializes the LRU policy trackers and lock."""
         self._lock = threading.Lock()
@@ -51,7 +56,7 @@ class LRUEvictionPolicy(IEvictionPolicy):
                 if len(ns_tracker) > max_items:
                     try:
                         key_to_evict, _ = ns_tracker.popitem(last=False)
-                    except KeyError:
+                    except (KeyError, Exception) as e:
                         pass
             
             if key_to_evict is None and global_max_size is not None:
@@ -83,7 +88,7 @@ class LRUEvictionPolicy(IEvictionPolicy):
                 self._lru_tracker.move_to_end(key)
                 if namespace in self._namespaced_lru_trackers:
                     self._namespaced_lru_trackers[namespace].move_to_end(key)
-            except KeyError:
+            except (KeyError, Exception):
                 pass
     
     def notify_evict(self, key: _CacheKey, namespace: str) -> None:
