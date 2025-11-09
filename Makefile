@@ -1,8 +1,8 @@
 .PHONY: test test-unit test-integration test-coverage test-verbose clean install-test-deps
 
-# Install test dependencies
-install-test-deps:
-	pip install -r requirements-test.txt
+# Install dependencies
+install-deps:
+	pip install -r requirements.txt
 
 # Run all tests
 test:
@@ -18,7 +18,7 @@ test-integration:
 
 # Run tests with coverage
 test-coverage:
-	python -m pytest --cov=. --cov-report=html --cov-report=term-missing
+	python -m pytest --cov=. --cov-report=html --cov-report=term-missing --cov-report=xml
 
 # Run tests with verbose output
 test-verbose:
@@ -55,18 +55,46 @@ test-python:
 test-performance:
 	python -m pytest -m "not slow" --durations=10
 
+# Install test dependencies (alias)
+install-test-deps: install-deps
+
+# Install quality dependencies (alias)
+install-quality-deps: install-deps
+
+lint:
+	flake8 .
+
+format:
+	black .
+	isort .
+
+format-check:
+	black --check --diff .
+	isort --check-only --diff .
+
+type-check:
+	mypy . --ignore-missing-imports || true
+
+quality-check: lint format-check type-check
+
 # Help
 help:
 	@echo "Available targets:"
-	@echo "  install-test-deps  - Install test dependencies"
-	@echo "  test              - Run all tests"
-	@echo "  test-unit         - Run unit tests only"
-	@echo "  test-integration  - Run integration tests only"
-	@echo "  test-coverage     - Run tests with coverage report"
-	@echo "  test-verbose      - Run tests with verbose output"
-	@echo "  test-file FILE=   - Run specific test file"
+	@echo "  install-test-deps    - Install test dependencies"
+	@echo "  install-quality-deps - Install code quality dependencies"
+	@echo "  test                - Run all tests"
+	@echo "  test-unit           - Run unit tests only"
+	@echo "  test-integration    - Run integration tests only"
+	@echo "  test-coverage       - Run tests with coverage report"
+	@echo "  test-verbose        - Run tests with verbose output"
+	@echo "  test-file FILE=     - Run specific test file"
 	@echo "  test-pattern PATTERN= - Run tests matching pattern"
-	@echo "  clean             - Clean test artifacts"
-	@echo "  check-all         - Run all tests with coverage"
-	@echo "  quick-test        - Quick test run without coverage"
-	@echo "  help              - Show this help message"
+	@echo "  lint                - Run linting with flake8"
+	@echo "  format              - Format code with black and isort"
+	@echo "  format-check        - Check code formatting"
+	@echo "  type-check          - Run type checking with mypy"
+	@echo "  quality-check       - Run all quality checks"
+	@echo "  clean               - Clean test artifacts"
+	@echo "  check-all           - Run all tests with coverage"
+	@echo "  quick-test          - Quick test run without coverage"
+	@echo "  help                - Show this help message"
