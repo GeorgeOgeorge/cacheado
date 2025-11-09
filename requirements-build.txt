@@ -1,0 +1,5 @@
+# Build and publishing dependencies
+build>=0.10.0
+twine>=4.0.0
+setuptools>=61.0
+wheel>=0.40.0

@@ -1,3 +1,51 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cacheado"
+version = "1.0.1"
+description = "Advanced Python cache system with multi-tenant support, scope hierarchies, and configurable eviction policies"
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+authors = [
+  { name = "George Mendonca Silva de Morais", email = "george1bsilva@outlook.com" },
+]
+keywords = ["cache", "multi-tenant", "hierarchical", "eviction", "thread-safe"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+Homepage = "https://github.com/GeorgeOgeorge/cacheado"
+Repository = "https://github.com/GeorgeOgeorge/cacheado"
+Documentation = "https://github.com/GeorgeOgeorge/cacheado#readme"
+"Bug Tracker" = "https://github.com/GeorgeOgeorge/cacheado/issues"
+
+[tool.setuptools]
+py-modules = ["cache", "cache_types"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+  "storages*",
+  "protocols*",
+  "cache_scopes*",
+  "cache_policies*",
+  "eviction_policies*",
+]
+exclude = ["tests*"]
+
 [tool.black]
 line-length = 127
 target-version = ['py38']
