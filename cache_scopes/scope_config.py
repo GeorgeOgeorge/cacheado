@@ -109,6 +109,11 @@ class ScopeConfig(IScope):
         """
         def build_path_recursive(levels: List[ScopeLevel], path_parts: List[str]) -> List[str]:
             for level in levels:
+                if level.name == "global":
+                    if level.children:
+                        return build_path_recursive(level.children, path_parts)
+                    return path_parts
+                
                 param_value = scope_params.get(level.param_name)
                 if param_value is not None:
                     new_path = path_parts + [f"{level.name}:{param_value}"]

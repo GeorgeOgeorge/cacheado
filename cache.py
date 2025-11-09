@@ -116,6 +116,7 @@ class Cache:
         value_tuple = self._storage.get(key)
         
         if value_tuple is None:
+            self._misses += 1
             return None
 
         value, expiry = value_tuple
@@ -123,6 +124,7 @@ class Cache:
         
         if current_time > expiry:
             self._internal_evict(key, namespace, notify_policy=True)
+            self._misses += 1
             return None
 
         self._hits += 1
@@ -367,7 +369,6 @@ class Cache:
             if cached_value is not None:
                 return cached_value
 
-            self._misses += 1
             calc_lock = self._calculation_locks[key]
             
             with calc_lock:
@@ -423,7 +424,6 @@ class Cache:
             if cached_value is not None:
                 return cached_value
 
-            self._misses += 1
             calc_lock = self._calculation_locks[key]
             
             await asyncio.to_thread(calc_lock.acquire)
@@ -710,6 +710,10 @@ def create_cache(
         Configured Cache instance
     """
     cache = Cache()
+    
+    if hasattr(policy_manager, '_cache') and policy_manager._cache is None:
+        policy_manager._cache = cache
+    
     cache.configure(
         backend=backend,
         policy_manager=policy_manager,
