@@ -1,0 +1,11 @@
+include README.md
+include LICENSE
+include pyproject.toml
+recursive-exclude tests *
+recursive-exclude .github *
+exclude .gitignore
+exclude .pre-commit-config.yaml
+exclude .flake8
+exclude pytest.ini
+exclude Makefile
+exclude requirements.txt
