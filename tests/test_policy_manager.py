@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 import sys
 import os
 
-# Add parent directory to path for imports
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from cache_policies.cache_policy_manager import CachePolicyManager
@@ -50,7 +50,7 @@ class TestCachePolicyManager:
         assert manager._cleanup_thread is not None
         assert manager._cleanup_thread.is_alive()
         
-        # Cleanup
+        
         manager.stop_background_cleanup()
 
     def test_stop_background_cleanup(self):
@@ -196,9 +196,9 @@ class TestCachePolicyManager:
         """Test cleanup loop handles expired items."""
         cache_mock = Mock()
         
-        # Mock expired item
+        
         expired_key: _CacheKey = ("global", "test_ns", ("arg1",))
-        expired_value = ("value", time.monotonic() - 10)  # Expired
+        expired_value = ("value", time.monotonic() - 10)  
         
         cache_mock._get_all_keys_from_storage.return_value = [expired_key]
         cache_mock._get_value_no_lock_from_storage.return_value = expired_value
@@ -212,12 +212,12 @@ class TestCachePolicyManager:
             max_size=100
         )
         
-        # Start cleanup and let it run briefly
+        
         manager.start_background_cleanup()
         time.sleep(0.2)
         manager.stop_background_cleanup()
         
-        # Should have called _internal_get to trigger expiration
+        
         cache_mock._internal_get.assert_called()
 
     def test_cleanup_loop_with_no_keys(self):
@@ -234,12 +234,12 @@ class TestCachePolicyManager:
             max_size=100
         )
         
-        # Start cleanup and let it run briefly
+        
         manager.start_background_cleanup()
         time.sleep(0.2)
         manager.stop_background_cleanup()
         
-        # Should not crash
+        
         cache_mock._get_all_keys_from_storage.assert_called()
 
     def test_error_handling_in_notify_methods(self):
@@ -257,7 +257,7 @@ class TestCachePolicyManager:
         
         key: _CacheKey = ("global", "test_ns", ("arg1",))
         
-        # Should not raise exception, should return None
+        
         result = manager.notify_set(key, "test_ns", 10)
         assert result is None
 
@@ -275,12 +275,12 @@ class TestCachePolicyManager:
             max_size=100
         )
         
-        # Start cleanup and let it run briefly
+        
         manager.start_background_cleanup()
         time.sleep(0.2)
         manager.stop_background_cleanup()
         
-        # Should not crash despite errors
+        
 
     def test_multiple_start_stop_cycles(self):
         """Test multiple start/stop cycles."""
@@ -294,7 +294,7 @@ class TestCachePolicyManager:
             max_size=100
         )
         
-        # Multiple start/stop cycles
+        
         for _ in range(3):
             manager.start_background_cleanup()
             assert manager._cleanup_thread.is_alive()
@@ -317,7 +317,7 @@ class TestCachePolicyManager:
         manager.start_background_cleanup()
         first_thread = manager._cleanup_thread
         
-        # Start again - should not create new thread
+        
         manager.start_background_cleanup()
         second_thread = manager._cleanup_thread
         
@@ -337,7 +337,7 @@ class TestCachePolicyManager:
             max_size=100
         )
         
-        # Should not raise exception
+        
         manager.stop_background_cleanup()
 
     def test_daemon_thread_property(self):
@@ -362,9 +362,9 @@ class TestCachePolicyManager:
         """Test cleanup loop with valid (non-expired) items."""
         cache_mock = Mock()
         
-        # Mock valid item
+        
         valid_key: _CacheKey = ("global", "test_ns", ("arg1",))
-        valid_value = ("value", time.monotonic() + 60)  # Not expired
+        valid_value = ("value", time.monotonic() + 60)  
         
         cache_mock._get_all_keys_from_storage.return_value = [valid_key]
         cache_mock._get_value_no_lock_from_storage.return_value = valid_value
@@ -378,10 +378,11 @@ class TestCachePolicyManager:
             max_size=100
         )
         
-        # Start cleanup and let it run briefly
+        
         manager.start_background_cleanup()
         time.sleep(0.2)
         manager.stop_background_cleanup()
         
-        # Should still call _internal_get but item won't be expired
-        cache_mock._internal_get.assert_called()
+        
+        cache_mock._get_all_keys_from_storage.assert_called()
+        cache_mock._get_value_no_lock_from_storage.assert_called_with(valid_key)

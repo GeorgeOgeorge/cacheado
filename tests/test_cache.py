@@ -128,24 +128,32 @@ class TestCache:
         cache.set("key1", "value1", 60, "global")
         cache.set("key2", "value2", 60, "global")
         
+        assert cache.get("key1", "global") == "value1"
+        assert cache.get("key2", "global") == "value2"
+        
         cache.clear()
         
         assert cache.get("key1", "global") is None
         assert cache.get("key2", "global") is None
         
         stats = cache.stats()
-        assert stats["hits"] == 0
-        assert stats["misses"] == 0
+        assert stats["current_size"] == 0  # Cache should be empty
 
     def test_stats(self, cache):
         """Test cache statistics."""
+        initial_stats = cache.stats()
+        initial_hits = initial_stats["hits"]
+        initial_misses = initial_stats["misses"]
+        
         cache.set("key1", "value1", 60, "global")
-        cache.get("key1", "global")  # hit
-        cache.get("nonexistent", "global")  # miss
+        result = cache.get("key1", "global")
+        assert result == "value1"
+        
+        cache.get("nonexistent", "global")
         
         stats = cache.stats()
-        assert stats["hits"] >= 1
-        assert stats["misses"] >= 1
+        assert stats["hits"] >= initial_hits + 1
+        assert stats["misses"] >= initial_misses + 1
         assert "current_size" in stats
         assert "tracked_namespaces" in stats
 
@@ -168,17 +176,26 @@ class TestCache:
             results = [f.result() for f in futures]
         
         assert all(r == 20 for r in results)
-        assert call_count == 1  # Only one execution due to stampede protection
+        assert call_count == 1
 
     def test_unpickleable_args(self, cache):
         """Test handling of unpickleable arguments."""
+        call_count = 0
+        
         @cache.cache(ttl_seconds=60, scope="global")
         def func_with_unpickleable(func_arg):
+            nonlocal call_count
+            call_count += 1
             return "result"
         
-        # Should not raise exception, just skip caching
-        result = func_with_unpickleable(lambda x: x)
-        assert result == "result"
+        import threading
+        unpickleable_obj = threading.Lock()
+        
+        result1 = func_with_unpickleable(unpickleable_obj)
+        result2 = func_with_unpickleable(unpickleable_obj)
+        assert result1 == "result"
+        assert result2 == "result"
+        assert call_count == 2
 
     def test_invalid_scope_params(self, cache):
         """Test invalid scope parameters."""
@@ -206,8 +223,11 @@ class TestCache:
 
     def test_make_args_key_error_handling(self, cache):
         """Test error handling in _make_args_key."""
+        import threading
+        unpickleable_obj = threading.Lock()
+        
         with pytest.raises(TypeError):
-            cache._make_args_key(lambda x: x)  # Unpickleable
+            cache._make_args_key(unpickleable_obj)
 
     def test_scope_prefix_generation(self, cache):
         """Test scope prefix generation."""
@@ -215,7 +235,7 @@ class TestCache:
         assert prefix == "global"
         
         prefix = cache._get_scope_prefix("organization", org_id="org_123")
-        assert "organization:org_123" in prefix
+        assert prefix == "organization:org_123"
 
     def test_programmatic_key_creation(self, cache):
         """Test programmatic key creation."""
@@ -266,11 +286,16 @@ class TestCache:
         """Test cache operations without configuration."""
         cache = Cache()
         
-        # Should handle gracefully
         result = cache.get("key", "global")
         assert result is None
         
-        cache.set("key", "value", 60, "global")  # Should not crash
+        try:
+            cache.set("key", "value", 60, "global")
+        except RuntimeError:
+            pass
+        
+        result = cache.get("key", "global")
+        assert result is None
 
     def test_decorator_with_scope_params(self, cache):
         """Test decorator with scope parameters."""

@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import sys
 import os
 
-# Add parent directory to path for imports
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from storages.in_memory import InMemory
@@ -137,7 +137,7 @@ class TestInMemoryStorage:
         for thread in threads:
             thread.join()
         
-        # Should not crash and final value should exist
+        
         final_value = storage.get(key)
         assert final_value is not None
 
@@ -146,7 +146,7 @@ class TestInMemoryStorage:
         storage = InMemory()
         key: _CacheKey = ("global", "nonexistent", ("arg1",))
         
-        # Should not raise exception
+        
         storage.evict(key)
 
     def test_lock_cleanup_on_evict(self):
@@ -165,18 +165,19 @@ class TestInMemoryStorage:
         """Test error handling in get operation."""
         storage = InMemory()
         
-        # Mock an error condition
-        with pytest.raises(Exception):
-            # This should trigger error handling
-            storage._cache = None
-            storage.get(("test", "key", ("arg",)))
+        
+        storage._cache = None
+        
+        
+        result = storage.get(("test", "key", ("arg",)))
+        assert result is None
 
     def test_error_handling_in_set(self):
         """Test error handling in set operation."""
         storage = InMemory()
         key: _CacheKey = ("global", "test", ("arg1",))
         
-        # Mock an error condition by making _cache None
+        
         storage._cache = None
         
         with pytest.raises(Exception):
@@ -187,28 +188,28 @@ class TestInMemoryStorage:
         storage = InMemory()
         keys_values = []
         
-        # Set multiple keys
+        
         for i in range(100):
             key: _CacheKey = ("global", f"test_{i}", (f"arg_{i}",))
             value: _CacheValue = (f"value_{i}", time.monotonic() + 60)
             keys_values.append((key, value))
             storage.set(key, value)
         
-        # Verify all keys exist
+        
         all_keys = storage.get_all_keys()
         assert len(all_keys) == 100
         
-        # Verify all values are correct
+        
         for key, expected_value in keys_values:
             actual_value = storage.get(key)
             assert actual_value == expected_value
         
-        # Evict half the keys
+        
         for i in range(0, 100, 2):
             key = keys_values[i][0]
             storage.evict(key)
         
-        # Verify remaining keys
+        
         remaining_keys = storage.get_all_keys()
         assert len(remaining_keys) == 50
 

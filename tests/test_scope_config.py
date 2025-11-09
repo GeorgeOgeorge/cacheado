@@ -2,7 +2,7 @@ import pytest
 import sys
 import os
 
-# Add parent directory to path for imports
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from cache_scopes.scope_config import ScopeConfig, ScopeLevel
@@ -47,7 +47,7 @@ class TestScopeConfig:
         """Test ScopeConfig initialization with no levels."""
         config = ScopeConfig()
         
-        assert len(config.root_levels) == 1  # Global level
+        assert len(config.root_levels) == 1  
         assert config.root_levels[0].name == "global"
 
     def test_initialization_with_levels(self):
@@ -130,7 +130,7 @@ class TestScopeConfig:
         org_level = ScopeLevel("organization", "org_id", [user_level])
         config = ScopeConfig([org_level])
         
-        # Only org_id provided
+        
         path = config.build_scope_path({"org_id": "org_123"})
         assert path == "organization:org_123"
 
@@ -138,7 +138,7 @@ class TestScopeConfig:
         """Test validating global scope parameters."""
         config = ScopeConfig()
         
-        # Should not raise exception
+        
         config.validate_scope_params("global", {})
 
     def test_validate_scope_params_valid(self):
@@ -146,7 +146,7 @@ class TestScopeConfig:
         org_level = ScopeLevel("organization", "org_id")
         config = ScopeConfig([org_level])
         
-        # Should not raise exception
+        
         config.validate_scope_params("organization", {"org_id": "org_123"})
 
     def test_validate_scope_params_missing_required(self):
@@ -170,13 +170,13 @@ class TestScopeConfig:
         org_level = ScopeLevel("organization", "org_id", [user_level])
         config = ScopeConfig([org_level])
         
-        # Valid nested params
+        
         config.validate_scope_params("user", {
             "org_id": "org_123",
             "user_id": "user_456"
         })
         
-        # Missing parent param
+        
         with pytest.raises(ValueError, match="Missing required parameter 'org_id'"):
             config.validate_scope_params("user", {"user_id": "user_456"})
 
@@ -192,17 +192,17 @@ class TestScopeConfig:
         """Test checking if scope is descendant of another."""
         config = ScopeConfig()
         
-        # Global is parent of everything
+        
         assert config.is_descendant_of("organization:org_123", "global")
         assert config.is_descendant_of("organization:org_123/user:user_456", "global")
         
-        # Direct parent-child relationship
+        
         assert config.is_descendant_of("organization:org_123/user:user_456", "organization:org_123")
         
-        # Same scope
+        
         assert config.is_descendant_of("organization:org_123", "organization:org_123")
         
-        # Not descendant
+        
         assert not config.is_descendant_of("global", "organization:org_123")
         assert not config.is_descendant_of("organization:org_456", "organization:org_123")
 
@@ -217,14 +217,14 @@ class TestScopeConfig:
         
         config = ScopeConfig([org_tree, tenant_tree])
         
-        # Test org tree
+        
         org_path = config.build_scope_path({
             "org_id": "org_123",
             "user_id": "user_456"
         })
         assert org_path == "organization:org_123/user:user_456"
         
-        # Test tenant tree
+        
         tenant_path = config.build_scope_path({
             "tenant_id": "tenant_123",
             "project_id": "proj_456"
@@ -239,17 +239,17 @@ class TestScopeConfig:
         
         config = ScopeConfig([org_level, tenant_level])
         
-        # Find tree containing user level
+        
         tree = config.get_scope_tree_for_level("user")
         assert tree is not None
         assert tree.name == "global"
         
-        # Find tree containing tenant level
+        
         tree = config.get_scope_tree_for_level("tenant")
         assert tree is not None
         assert tree.name == "global"
         
-        # Non-existent level
+        
         tree = config.get_scope_tree_for_level("nonexistent")
         assert tree is None
 
@@ -259,7 +259,7 @@ class TestScopeConfig:
         org_level = ScopeLevel("organization", "org_id", [user_level])
         config = ScopeConfig([org_level])
         
-        # Test with global root
+        
         global_root = config.root_levels[0]
         assert config._level_exists_in_tree(global_root, "global")
         assert config._level_exists_in_tree(global_root, "organization")
@@ -274,7 +274,7 @@ class TestScopeConfig:
         
         config = ScopeConfig([org_level])
         
-        # Test full path
+        
         path = config.build_scope_path({
             "org_id": "org_123",
             "user_id": "user_456",
@@ -282,14 +282,14 @@ class TestScopeConfig:
         })
         assert path == "organization:org_123/user:user_456/session:sess_789"
         
-        # Test validation
+        
         config.validate_scope_params("session", {
             "org_id": "org_123",
             "user_id": "user_456",
             "session_id": "sess_789"
         })
         
-        # Test missing intermediate param
+        
         with pytest.raises(ValueError, match="Missing required parameter 'user_id'"):
             config.validate_scope_params("session", {
                 "org_id": "org_123",
@@ -298,29 +298,29 @@ class TestScopeConfig:
 
     def test_empty_param_name(self):
         """Test level with empty parameter name."""
-        level = ScopeLevel("global", "")
+        level = ScopeLevel("custom", "")  
         config = ScopeConfig([level])
         
-        # Should work with empty param name
+        
         path = config.build_scope_path({})
-        assert path == "global"
+        assert path == "global"  
 
     def test_property_accessors(self):
         """Test property accessor methods."""
         org_level = ScopeLevel("organization", "org_id")
         config = ScopeConfig([org_level])
         
-        # Test that properties return copies
+        
         root_levels = config.root_levels
         all_levels = config.all_levels
         level_names = config.level_names
         
-        # Modify returned lists
+        
         root_levels.clear()
         all_levels.clear()
         level_names.clear()
         
-        # Original should be unchanged
+        
         assert len(config.root_levels) > 0
         assert len(config.all_levels) > 0
         assert len(config.level_names) > 0

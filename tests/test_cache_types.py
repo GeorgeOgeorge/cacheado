@@ -138,12 +138,10 @@ class TestCacheTypes:
         """Test that cache keys are immutable (tuples)."""
         key: _CacheKey = ("global", "test", ("arg1", "arg2"))
         
-        # Should not be able to modify
         with pytest.raises(TypeError):
             key[0] = "modified"  # type: ignore
         
-        with pytest.raises(TypeError):
-            key.append("new_item")  # type: ignore
+        assert not hasattr(key, 'append')
 
     def test_cache_value_immutability(self):
         """Test that cache value tuples are immutable."""
@@ -153,8 +151,8 @@ class TestCacheTypes:
         with pytest.raises(TypeError):
             value[0] = "modified"  # type: ignore
         
-        with pytest.raises(TypeError):
-            value.append("new_item")  # type: ignore
+        # Tuples don't have append method
+        assert not hasattr(value, 'append')
 
     def test_nested_tuple_structures(self):
         """Test nested tuple structures in cache keys."""
