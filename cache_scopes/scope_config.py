@@ -7,7 +7,6 @@ from protocols.scope import IScope
 @dataclass
 class ScopeLevel:
     """Represents a level in the scope hierarchy."""
-    __slots__ = ('name', 'param_name', 'children')
     
     name: str
     param_name: str
