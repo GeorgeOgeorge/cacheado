@@ -1,0 +1,13 @@
+name: CI Status
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  ci-status:
+    runs-on: ubuntu-latest
+    steps:
+    - run: echo "All CI workflows completed. Check individual workflow results."
