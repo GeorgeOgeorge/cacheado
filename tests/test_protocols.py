@@ -79,7 +79,7 @@ class TestProtocols:
     def test_protocol_inheritance(self):
         """Test protocol inheritance structure."""
         # Protocols should be properly defined as Protocol classes
-        # In Python 3.8+, protocols have different attributes
+        # In Python 3.9+, protocols have different attributes
         protocols = [IStorageProvider, IEvictionPolicy, ICachePolicyManager, IScope, ICache]
 
         for protocol in protocols:

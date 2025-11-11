@@ -6,7 +6,7 @@ Este diretório contém as pipelines de CI/CD para o projeto de cache hierárqui
 
 ### 🧪 Tests (`tests.yml`)
 - **Trigger**: Push/PR para `main` e `develop`
-- **Matriz**: Python 3.8, 3.9, 3.10, 3.11, 3.12
+- **Matriz**: Python 3.9, 3.10, 3.11, 3.12
 - **Executa**: Testes unitários, integração e coverage
 - **Coverage**: Enviado para Codecov (Python 3.11)
 
