@@ -53,6 +53,9 @@ jobs:
       with:
         python-version: '3.9'
     
+    - name: Install packaging for version validation
+      run: pip install packaging
+    
     - name: Validate version bump
       run: |
         current_version=$(python -c "import re; print(re.search(r'version = \"([^\"]+)\"', open('pyproject.toml').read()).group(1))")
