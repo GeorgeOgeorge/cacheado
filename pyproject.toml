@@ -18,7 +18,6 @@ classifiers = [
   "Intended Audience :: Developers",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
-
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
@@ -32,10 +31,12 @@ Repository = "https://github.com/GeorgeOgeorge/cacheado"
 Documentation = "https://github.com/GeorgeOgeorge/cacheado#readme"
 "Bug Tracker" = "https://github.com/GeorgeOgeorge/cacheado/issues"
 
+[tool.setuptools]
+py-modules = ["cache", "cache_types"]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = [
-  "cache_package*",
   "storages*",
   "protocols*",
   "cache_scopes*",

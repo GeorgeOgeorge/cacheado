@@ -83,6 +83,28 @@ type-check:
 
 quality-check: lint format-check type-check
 
+# Version management
+bump-patch:
+	@python -c "import re; f='pyproject.toml'; c=open(f).read(); v=re.search(r'version = \"(\d+)\.(\d+)\.(\d+)\"', c); major,minor,patch=map(int,v.groups()); new=f'{major}.{minor}.{patch+1}'; open(f,'w').write(re.sub(r'version = \"\d+\.\d+\.\d+\"', f'version = \"{new}\"', c)); print(f'Version bumped to {new}')"
+
+bump-minor:
+	@python -c "import re; f='pyproject.toml'; c=open(f).read(); v=re.search(r'version = \"(\d+)\.(\d+)\.(\d+)\"', c); major,minor,patch=map(int,v.groups()); new=f'{major}.{minor+1}.0'; open(f,'w').write(re.sub(r'version = \"\d+\.\d+\.\d+\"', f'version = \"{new}\"', c)); print(f'Version bumped to {new}')"
+
+bump-major:
+	@python -c "import re; f='pyproject.toml'; c=open(f).read(); v=re.search(r'version = \"(\d+)\.(\d+)\.(\d+)\"', c); major,minor,patch=map(int,v.groups()); new=f'{major+1}.0.0'; open(f,'w').write(re.sub(r'version = \"\d+\.\d+\.\d+\"', f'version = \"{new}\"', c)); print(f'Version bumped to {new}')"
+
+# Publishing
+build:
+	rm -rf build/ dist/ *.egg-info/
+	python -m build
+	python -m twine check dist/*
+
+publish-test: build
+	python -m twine upload --repository testpypi dist/*
+
+publish: build
+	python -m twine upload dist/*
+
 # Help
 help:
 	@echo "Available targets:"
@@ -100,6 +122,12 @@ help:
 	@echo "  format-check        - Check code formatting"
 	@echo "  type-check          - Run type checking with mypy"
 	@echo "  quality-check       - Run all quality checks"
+	@echo "  bump-patch          - Bump patch version (1.0.0 -> 1.0.1)"
+	@echo "  bump-minor          - Bump minor version (1.0.0 -> 1.1.0)"
+	@echo "  bump-major          - Bump major version (1.0.0 -> 2.0.0)"
+	@echo "  build               - Build package for distribution"
+	@echo "  publish-test        - Publish to test PyPI"
+	@echo "  publish             - Publish to PyPI"
 	@echo "  clean               - Clean test artifacts"
 	@echo "  check-all           - Run all tests with coverage"
 	@echo "  quick-test          - Quick test run without coverage"

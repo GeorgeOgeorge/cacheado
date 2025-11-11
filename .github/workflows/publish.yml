@@ -1,0 +1,103 @@
+name: Publish to PyPI
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+    types: [ closed ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.8'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    - name: Run tests
+      run: make test-coverage
+
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.8'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    - name: Run quality checks
+      run: make quality-check
+
+  publish:
+    needs: [test, quality]
+    if: github.event_name == 'push' || (github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.8'
+    
+    - name: Validate version bump
+      run: |
+        current_version=$(python -c "import re; print(re.search(r'version = \"([^\"]+)\"', open('pyproject.toml').read()).group(1))")
+        echo "Current version: $current_version"
+        
+        latest_tag=$(git tag --sort=-version:refname | head -n1 || echo "0.0.0")
+        echo "Latest tag: $latest_tag"
+        
+        python -c "
+        from packaging import version
+        import sys
+        current = version.parse('$current_version')
+        latest = version.parse('$latest_tag')
+        if current <= latest:
+            print(f'Error: Current version {current} must be greater than latest {latest}')
+            sys.exit(1)
+        print(f'Version validation passed: {current} > {latest}')
+        "
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine packaging
+    
+    - name: Build package
+      run: python -m build
+    
+    - name: Create git tag and release
+      run: |
+        version=$(python -c "import re; print(re.search(r'version = \"([^\"]+)\"', open('pyproject.toml').read()).group(1))")
+        git tag "v$version"
+        git push origin "v$version"
+        echo "VERSION=v$version" >> $GITHUB_ENV
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ env.VERSION }}
+        name: Release ${{ env.VERSION }}
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+    
+    - name: Publish to PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: twine upload dist/*
