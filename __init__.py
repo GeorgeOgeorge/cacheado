@@ -12,7 +12,7 @@ from .cache_types import _CacheKey, _CacheScope, _CacheValue
 from .eviction_policies.lre_eviction import LRUEvictionPolicy
 from .storages.in_memory import InMemory
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 __all__ = [
     "Cache",
