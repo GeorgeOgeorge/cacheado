@@ -73,7 +73,13 @@ format-check:
 	isort --check-only --diff .
 
 type-check:
-	mypy . --ignore-missing-imports || true
+	@output=$$(mypy . --ignore-missing-imports 2>&1); \
+	if echo "$$output" | grep -q "error:"; then \
+		echo "$$output" | grep "error:"; \
+		echo "$$output" | grep "Found.*error"; \
+	else \
+		echo "MyPy: No errors found"; \
+	fi
 
 quality-check: lint format-check type-check
 

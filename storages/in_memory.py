@@ -1,7 +1,7 @@
 import logging
 import threading
 from collections import defaultdict
-from typing import DefaultDict, Dict, Optional
+from typing import DefaultDict, Dict, List, Optional
 
 from cache_types import _CacheKey, _CacheValue
 from protocols.storage_provider import IStorageProvider
@@ -10,12 +10,13 @@ from protocols.storage_provider import IStorageProvider
 class InMemory(IStorageProvider):
     """
     Thread-safe, in-memory implementation of the IStorageProvider.
-    
+
     Uses key-based locks for high-concurrency atomic operations.
     Optimized with __slots__ for memory efficiency.
     """
-    __slots__ = ('_cache', '_key_locks', '_instance_lock')
-    
+
+    __slots__ = ("_cache", "_key_locks", "_instance_lock")
+
     def __init__(self):
         """Initializes the in-memory storage."""
         self._cache: Dict[_CacheKey, _CacheValue] = {}
@@ -39,11 +40,11 @@ class InMemory(IStorageProvider):
         except Exception as e:
             logging.error(f"Error getting key {key}: {e}")
             return None
-            
+
     def get_value_no_lock(self, key: _CacheKey) -> Optional[_CacheValue]:
         """
         Performs a non-locking ("dirty") read for the cleanup loop.
-        
+
         Args:
             key (_CacheKey): The internal key to look up.
 
@@ -66,7 +67,7 @@ class InMemory(IStorageProvider):
         except Exception as e:
             logging.error(f"Error setting key {key}: {e}")
             raise
-        
+
     def evict(self, key: _CacheKey) -> None:
         """
         Atomically evicts a key from memory and cleans up its lock.
@@ -78,18 +79,18 @@ class InMemory(IStorageProvider):
             with self._key_locks[key]:
                 if key in self._cache:
                     del self._cache[key]
-                
+
                 if key in self._key_locks:
                     del self._key_locks[key]
         except Exception as e:
             logging.error(f"Error evicting key {key}: {e}")
 
-    def get_all_keys(self) -> list[_CacheKey]:
+    def get_all_keys(self) -> List[_CacheKey]:
         """
         Atomically gets a copy of all keys in memory.
 
         Returns:
-            list[_CacheKey]: A list of all cache keys.
+            List[_CacheKey]: A list of all cache keys.
         """
         try:
             with self._instance_lock:
@@ -97,7 +98,7 @@ class InMemory(IStorageProvider):
         except Exception as e:
             logging.error(f"Error getting all keys: {e}")
             return []
-        
+
     def clear(self) -> None:
         """Atomically clears the entire in-memory storage."""
         try:
