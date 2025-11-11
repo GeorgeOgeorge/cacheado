@@ -8,18 +8,14 @@ from protocols.storage_provider import IStorageProvider
 class ICache(Protocol):
     """
     Interface (Protocol) defining the public API for the Cache.
-    
+
     This allows for Dependency Injection and testability, enabling
     consumers to depend on this interface rather than the concrete
     Singleton implementation.
     """
-    
+
     def get(
-        self,
-        key: Any,
-        scope: _CacheScope = "global",
-        organization_id: Optional[str] = None,
-        user_id: Optional[str] = None
+        self, key: Any, scope: _CacheScope = "global", organization_id: Optional[str] = None, user_id: Optional[str] = None
     ) -> Optional[Any]:
         """
         Gets an item programmatically from the cache.
@@ -42,7 +38,7 @@ class ICache(Protocol):
         ttl_seconds: Union[int, float],
         scope: _CacheScope = "global",
         organization_id: Optional[str] = None,
-        user_id: Optional[str] = None
+        user_id: Optional[str] = None,
     ) -> None:
         """
         Sets an item programmatically in the cache.
@@ -58,11 +54,7 @@ class ICache(Protocol):
         ...
 
     def evict(
-        self,
-        key: Any,
-        scope: _CacheScope = "global",
-        organization_id: Optional[str] = None,
-        user_id: Optional[str] = None
+        self, key: Any, scope: _CacheScope = "global", organization_id: Optional[str] = None, user_id: Optional[str] = None
     ) -> None:
         """
         Removes a specific item programmatically from the cache.
@@ -80,11 +72,7 @@ class ICache(Protocol):
         ...
 
     def aget(
-        self,
-        key: Any,
-        scope: _CacheScope = "global",
-        organization_id: Optional[str] = None,
-        user_id: Optional[str] = None
+        self, key: Any, scope: _CacheScope = "global", organization_id: Optional[str] = None, user_id: Optional[str] = None
     ) -> Awaitable[Optional[Any]]:
         """
         Asynchronously gets an item programmatically from the cache.
@@ -107,7 +95,7 @@ class ICache(Protocol):
         ttl_seconds: Union[int, float],
         scope: _CacheScope = "global",
         organization_id: Optional[str] = None,
-        user_id: Optional[str] = None
+        user_id: Optional[str] = None,
     ) -> Awaitable[None]:
         """
         Asynchronously sets an item programmatically in the cache.
@@ -123,11 +111,7 @@ class ICache(Protocol):
         ...
 
     def aevict(
-        self,
-        key: Any,
-        scope: _CacheScope = "global",
-        organization_id: Optional[str] = None,
-        user_id: Optional[str] = None
+        self, key: Any, scope: _CacheScope = "global", organization_id: Optional[str] = None, user_id: Optional[str] = None
     ) -> Awaitable[None]:
         """
         Asynchronously removes a specific item programmatically.
@@ -149,17 +133,12 @@ class ICache(Protocol):
         Returns a dictionary of cache observability statistics.
 
         Returns:
-            Dict[str, Any]: A dict containing keys like 'hits', 'misses', 
+            Dict[str, Any]: A dict containing keys like 'hits', 'misses',
             'evictions', 'current_size', etc.
         """
         ...
 
-    def evict_by_scope(
-        self,
-        scope: _CacheScope,
-        organization_id: Optional[str] = None,
-        user_id: Optional[str] = None
-    ) -> int:
+    def evict_by_scope(self, scope: _CacheScope, organization_id: Optional[str] = None, user_id: Optional[str] = None) -> int:
         """
         Granularly evicts all items belonging to a specific tenant.
 
@@ -172,12 +151,9 @@ class ICache(Protocol):
             int: The number of items successfully evicted.
         """
         ...
-        
+
     def cache(
-        self,
-        ttl_seconds: Union[int, float],
-        scope: _CacheScope = "global",
-        max_items: Optional[int] = None
+        self, ttl_seconds: Union[int, float], scope: _CacheScope = "global", max_items: Optional[int] = None
     ) -> Callable[[_FuncT], _FuncT]:
         """
         Decorator factory for caching function results.
@@ -191,13 +167,9 @@ class ICache(Protocol):
             Callable[[_FuncT], _FuncT]: A decorator function.
         """
         ...
-        
+
     def configure(
-        self,
-        backend: IStorageProvider,
-        policy: IEvictionPolicy,
-        max_size: int = 1000,
-        cleanup_interval: int = 60
+        self, backend: IStorageProvider, policy: IEvictionPolicy, max_size: int = 1000, cleanup_interval: int = 60
     ) -> None:
         """
         Configures and starts the cache. Must be called once.
