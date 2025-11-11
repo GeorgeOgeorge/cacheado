@@ -4,110 +4,118 @@ on:
   push:
     branches: [ master, main ]
   pull_request:
+    types: [ opened, synchronize, closed ]
     branches: [ master, main ]
-    types: [ closed ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
-  test:
+  ci-checks:
+    name: CI Checks (Python ${{ matrix.python-version }})
+
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [ '3.9', '3.10', '3.11', '3.12' ]
+
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python
+    
+    - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+        
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        
     - name: Run tests
       run: make test-coverage
 
-  quality:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
     - name: Run quality checks
       run: make quality-check
 
-  publish:
-    needs: [test, quality]
-    if: github.event_name == 'push' || (github.event.pull_request.merged == true)
+  publish-to-pypi:
+    name: Publish to PyPI
+    
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'release/')
+
     runs-on: ubuntu-latest
+    
     permissions:
-      contents: write
-      pull-requests: write
+      contents: write 
+      id-token: write 
     
     steps:
     - uses: actions/checkout@v4
       with:
+        ref: ${{ github.event.pull_request.base.ref }}
         fetch-depth: 0
     
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
+        
+    - name: Install build tools
+      run: python -m pip install --upgrade pip build packaging
     
-    - name: Install packaging for version validation
-      run: pip install packaging
-    
-    - name: Validate version bump
+    - name: Validate version from branch and toml
+      id: version_check
       run: |
-        current_version=$(python -c "import re; print(re.search(r'version = \"([^\"]+)\"', open('pyproject.toml').read()).group(1))")
-        echo "Current version: $current_version"
+        branch_name=${{ github.event.pull_request.head.ref }}
+        branch_version=${branch_name#'release/'}
+        echo "Version from branch: $branch_version"
+
+        toml_version=$(python -c "import re; print(re.search(r'version = \"([^\"]+)\"', open('pyproject.toml').read()).group(1))")
+        echo "Version from pyproject.toml: $toml_version"
+        
+        if [ "$toml_version" != "$branch_version" ]; then
+          echo "Error: Version in pyproject.toml ($toml_version) does not match branch ($branch_version)!"
+          exit 1
+        fi
         
         latest_tag=$(git tag --sort=-version:refname | head -n1 || echo "")
         echo "Latest tag: $latest_tag"
         
-        if [ -z "$latest_tag" ]; then
-          echo "No previous tags found. This is the first release."
-          echo "Version validation passed: $current_version (first release)"
-        else
+        if [ -n "$latest_tag" ]; then
           python -c "
         from packaging import version
         import sys
-        current = version.parse('$current_version')
-        latest = version.parse('$latest_tag')
+        current = version.parse('$branch_version')
+        latest = version.parse('$latest_tag.lstrip('v')')
         if current <= latest:
             print(f'Error: Current version {current} must be greater than latest {latest}')
             sys.exit(1)
         print(f'Version validation passed: {current} > {latest}')
         "
         fi
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install build twine packaging
-    
+        
+        echo "version_tag=v${branch_version}" >> $GITHUB_OUTPUT
+        
     - name: Build package
       run: python -m build
     
-    - name: Get version
-      run: |
-        version=$(python -c "import re; print(re.search(r'version = \"([^\"]+)\"', open('pyproject.toml').read()).group(1))")
-        echo "VERSION=v$version" >> $GITHUB_ENV
-    
-    - name: Create GitHub Release
+    - name: Create GitHub Release (and Tag)
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ env.VERSION }}
-        name: Release ${{ env.VERSION }}
-        draft: false
-        prerelease: false
+        tag_name: ${{ steps.version_check.outputs.version_tag }}
+        name: Release ${{ steps.version_check.outputs.version_tag }}
         generate_release_notes: true
         token: ${{ secrets.GITHUB_TOKEN }}
-    
+        
     - name: Publish to PyPI
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-      run: twine upload dist/*
+      uses: pypa/gh-action-pypi-publish@v1
