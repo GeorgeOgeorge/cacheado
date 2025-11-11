@@ -61,10 +61,14 @@ jobs:
         current_version=$(python -c "import re; print(re.search(r'version = \"([^\"]+)\"', open('pyproject.toml').read()).group(1))")
         echo "Current version: $current_version"
         
-        latest_tag=$(git tag --sort=-version:refname | head -n1 || echo "0.0.0")
+        latest_tag=$(git tag --sort=-version:refname | head -n1 || echo "")
         echo "Latest tag: $latest_tag"
         
-        python -c "
+        if [ -z "$latest_tag" ]; then
+          echo "No previous tags found. This is the first release."
+          echo "Version validation passed: $current_version (first release)"
+        else
+          python -c "
         from packaging import version
         import sys
         current = version.parse('$current_version')
@@ -74,6 +78,7 @@ jobs:
             sys.exit(1)
         print(f'Version validation passed: {current} > {latest}')
         "
+        fi
     
     - name: Install dependencies
       run: |
