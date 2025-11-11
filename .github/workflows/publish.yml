@@ -80,11 +80,21 @@ jobs:
     - name: Build package
       run: python -m build
     
-    - name: Create git tag
+    - name: Create git tag and release
       run: |
         version=$(python -c "import re; print(re.search(r'version = \"([^\"]+)\"', open('pyproject.toml').read()).group(1))")
         git tag "v$version"
         git push origin "v$version"
+        echo "VERSION=v$version" >> $GITHUB_ENV
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ env.VERSION }}
+        name: Release ${{ env.VERSION }}
+        draft: false
+        prerelease: false
+        generate_release_notes: true
     
     - name: Publish to PyPI
       env:
