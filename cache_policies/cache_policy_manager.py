@@ -8,7 +8,7 @@ from cache_types import _CacheKey
 if TYPE_CHECKING:
     from cache import Cache
 
-from protocols.cache_policy_manager import ICachePolicyManager
+from protocols.cache_policy_manager_protocol import ICachePolicyManager
 from protocols.eviction_policy import IEvictionPolicy
 
 

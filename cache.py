@@ -11,7 +11,7 @@ from typing_extensions import ParamSpec, TypeVar
 
 from cache_scopes.scope_config import ScopeConfig
 from cache_types import _CacheKey, _CacheScope, _CacheValue
-from protocols.cache_policy_manager import ICachePolicyManager
+from protocols.cache_policy_manager_protocol import ICachePolicyManager
 from protocols.storage_provider import IStorageProvider
 
 P = ParamSpec("P")

@@ -1,7 +1,7 @@
 """Tests for protocol interfaces to ensure they are properly defined."""
 
 from protocols.cache import ICache
-from protocols.cache_policy_manager import ICachePolicyManager
+from protocols.cache_policy_manager_protocol import ICachePolicyManager
 from protocols.eviction_policy import IEvictionPolicy
 from protocols.scope import IScope
 from protocols.storage_provider import IStorageProvider
