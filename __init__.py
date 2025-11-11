@@ -11,13 +11,17 @@ from .cache_scopes.scope_config import ScopeConfig, ScopeLevel
 from .cache_types import _CacheKey, _CacheScope, _CacheValue
 from .eviction_policies.lre_eviction import LRUEvictionPolicy
 from .storages.in_memory import InMemory
+from .storages.mongodb_storage import MongoDBStorage
+from .storages.redis_storage import RedisStorage
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 __all__ = [
     "Cache",
     "create_cache",
     "InMemory",
+    "RedisStorage",
+    "MongoDBStorage",
     "LRUEvictionPolicy",
     "CachePolicyManager",
     "ScopeConfig",
