@@ -1,4 +1,4 @@
-from typing import Optional, Protocol
+from typing import List, Optional, Protocol
 
 from cache_types import _CacheKey, _CacheValue
 
@@ -53,12 +53,12 @@ class IStorageProvider(Protocol):
         """
         ...
 
-    def get_all_keys(self) -> list[_CacheKey]:
+    def get_all_keys(self) -> List[_CacheKey]:
         """
         Atomically gets a copy of all keys in storage.
 
         Returns:
-            list[_CacheKey]: A list of all cache keys.
+            List[_CacheKey]: A list of all cache keys.
         """
         ...
         

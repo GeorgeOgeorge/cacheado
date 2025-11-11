@@ -5,7 +5,7 @@ import threading
 import time
 from collections import defaultdict
 from functools import wraps
-from typing import Any, Callable, DefaultDict, Dict, Optional, Tuple, Union
+from typing import Any, Callable, DefaultDict, Dict, List, Optional, Tuple, Union
 
 from typing_extensions import ParamSpec, TypeVar
 
@@ -73,12 +73,12 @@ class Cache:
         else:
             logging.warning("Cache has already been configured.")
 
-    def _get_all_keys_from_storage(self) -> list[_CacheKey]:
+    def _get_all_keys_from_storage(self) -> List[_CacheKey]:
         """
         (Hook) Returns all keys from the injected storage provider.
         
         Returns:
-            list[_CacheKey]: A copy of the current cache keys.
+            List[_CacheKey]: A copy of the current cache keys.
         """
         if self._storage:
             return self._storage.get_all_keys()

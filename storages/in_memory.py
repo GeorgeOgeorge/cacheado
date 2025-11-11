@@ -1,7 +1,7 @@
 import logging
 import threading
 from collections import defaultdict
-from typing import DefaultDict, Dict, Optional
+from typing import DefaultDict, Dict, List, Optional
 
 from cache_types import _CacheKey, _CacheValue
 from protocols.storage_provider import IStorageProvider
@@ -84,12 +84,12 @@ class InMemory(IStorageProvider):
         except Exception as e:
             logging.error(f"Error evicting key {key}: {e}")
 
-    def get_all_keys(self) -> list[_CacheKey]:
+    def get_all_keys(self) -> List[_CacheKey]:
         """
         Atomically gets a copy of all keys in memory.
 
         Returns:
-            list[_CacheKey]: A list of all cache keys.
+            List[_CacheKey]: A list of all cache keys.
         """
         try:
             with self._instance_lock:
