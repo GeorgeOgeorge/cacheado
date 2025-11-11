@@ -77,6 +77,9 @@ class CachePolicyManager(ICachePolicyManager):
         """
         while not self._stop_event.wait(self._cleanup_interval):
             try:
+                if self._cache is None:
+                    continue
+
                 all_keys = self._cache._get_all_keys_from_storage()
                 if not all_keys:
                     continue
