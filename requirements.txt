@@ -1,5 +1,6 @@
 # Core dependencies
 redis>=4.0.0
+pymongo>=4.10.1
 
 # Test dependencies
 pytest>=7.0.0
