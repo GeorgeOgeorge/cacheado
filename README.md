@@ -300,6 +300,58 @@ class CustomCache(Cache):
             return (str(args), str(sorted(kwargs.items())))
 ```
 
+## 🚀 CI/CD Pipeline
+
+The project includes automated CI/CD pipeline with GitHub Actions for quality assurance and publishing:
+
+### Pipeline Stages
+
+#### 1. **Quality Assurance** (`.github/workflows/quality.yml`)
+Runs on every push and pull request:
+- **Linting**: Code style validation with flake8
+- **Formatting**: Black and isort checks
+- **Type Checking**: MyPy static analysis
+- **Standards**: Ensures code quality before merge
+
+#### 2. **Automated Publishing** (`.github/workflows/publish.yml`)
+Triggered on push/merge to `master` branch:
+
+**Pipeline Steps:**
+1. **Test Execution**: Full test suite with coverage
+2. **Quality Validation**: Lint, format, and type checks
+3. **Version Validation**: Ensures version was bumped
+4. **Package Building**: Creates distribution files
+5. **Git Tagging**: Automatic version tagging
+6. **GitHub Release**: Creates release with notes
+7. **PyPI Publishing**: Uploads to Python Package Index
+
+### Version Management
+
+```bash
+# Bump version before merge/push
+make bump-patch    # 1.0.0 → 1.0.1 (bug fixes)
+make bump-minor    # 1.0.0 → 1.1.0 (new features)
+make bump-major    # 1.0.0 → 2.0.0 (breaking changes)
+```
+
+### Setup Requirements
+
+1. **PyPI API Token**: Add `PYPI_API_TOKEN` to GitHub repository secrets
+2. **Version Bump**: Always increment version before merge to master
+3. **Quality Gates**: All tests and quality checks must pass
+
+### Manual Publishing
+
+```bash
+# Local development workflow
+make test-coverage     # Ensure tests pass
+make quality-check     # Validate code quality
+make bump-patch        # Increment version
+make build            # Build package locally
+make publish-test     # Test on TestPyPI
+make publish          # Publish to PyPI
+```
+
 ## 🧪 Tests
 
 The project includes a complete test suite:
@@ -395,18 +447,74 @@ This project is open source and available under the MIT license.
 
 ## 🤝 Contributing
 
-1. Fork the project
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+### Development Workflow
+
+1. **Fork and Clone**
+   ```bash
+   git clone https://github.com/yourusername/cacheado.git
+   cd cacheado
+   ```
+
+2. **Create Feature Branch**
+   ```bash
+   git checkout -b feature/amazing-feature
+   ```
+
+3. **Development Cycle**
+   ```bash
+   # Install dependencies
+   pip install -r requirements.txt
+   
+   # Run tests during development
+   make test-coverage
+   
+   # Check code quality
+   make quality-check
+   
+   # Format code
+   make format
+   ```
+
+4. **Pre-commit Validation**
+   ```bash
+   make check-all  # Runs tests + quality checks
+   ```
+
+5. **Submit Changes**
+   ```bash
+   git commit -m "feat: add amazing feature"
+   git push origin feature/amazing-feature
+   ```
+
+6. **Create Pull Request**
+   - All CI checks must pass
+   - Maintain test coverage >95%
+   - Follow conventional commit messages
+
+### Release Process (Maintainers)
+
+1. **Prepare Release**
+   ```bash
+   make bump-minor  # or bump-patch/bump-major
+   git add pyproject.toml
+   git commit -m "chore: bump version to X.Y.Z"
+   ```
+
+2. **Merge to Master**
+   - Pipeline automatically:
+     - Validates version bump
+     - Runs full test suite
+     - Creates Git tag
+     - Publishes to PyPI
+     - Creates GitHub release
 
 ### Guidelines
 
-- Maintain test coverage >95%
-- Follow existing code conventions
-- Add documentation for new features
-- Run `make check-all` before submitting
+- **Test Coverage**: Maintain >95% coverage
+- **Code Style**: Follow Black + isort formatting
+- **Type Hints**: Add type annotations for new code
+- **Documentation**: Update README for new features
+- **Commit Messages**: Use conventional commits format
 
 ## 📚 Additional Documentation
 
