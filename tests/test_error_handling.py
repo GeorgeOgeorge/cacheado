@@ -32,7 +32,8 @@ class TestErrorHandling:
         policy_mock = Mock()
 
         # Test start_background_cleanup error
-        manager = CachePolicyManager(cache_mock, 1, policy_mock, 100)
+        manager = CachePolicyManager(1, policy_mock, 100)
+        manager.set_cache_instance(cache_mock)
 
         with patch("threading.Thread") as mock_thread:
             mock_thread.side_effect = Exception("Thread creation failed")
@@ -43,7 +44,8 @@ class TestErrorHandling:
         """Test CachePolicyManager stop error handling."""
         cache_mock = Mock()
         policy_mock = Mock()
-        manager = CachePolicyManager(cache_mock, 1, policy_mock, 100)
+        manager = CachePolicyManager(1, policy_mock, 100)
+        manager.set_cache_instance(cache_mock)
 
         # Mock thread that raises exception on join
         mock_thread = Mock()
@@ -249,7 +251,7 @@ class TestErrorHandling:
         """Test create_cache with policy manager that has _cache attribute."""
         storage = InMemory()
         policy = LRUEvictionPolicy()
-        policy_manager = CachePolicyManager(None, 1, policy, 100)
+        policy_manager = CachePolicyManager(1, policy, 100)
         scope_config = ScopeConfig()
 
         # Ensure _cache is None initially

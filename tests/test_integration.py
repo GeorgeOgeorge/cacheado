@@ -22,7 +22,7 @@ class TestIntegration:
 
         storage = InMemory()
         eviction_policy = LRUEvictionPolicy()
-        policy_manager = CachePolicyManager(cache_instance=None, cleanup_interval=1, policy=eviction_policy, max_size=10)
+        policy_manager = CachePolicyManager(cleanup_interval=1, policy=eviction_policy, max_size=10)
 
         cache = create_cache(storage, policy_manager, scope_config)
 
@@ -44,7 +44,7 @@ class TestIntegration:
         """Test decorator integration with full system."""
         cache = create_cache(
             InMemory(),
-            CachePolicyManager(None, 1, LRUEvictionPolicy(), 100),
+            CachePolicyManager(1, LRUEvictionPolicy(), 100),
             ScopeConfig([ScopeLevel("organization", "org_id")]),
         )
 
@@ -71,7 +71,7 @@ class TestIntegration:
     @pytest.mark.asyncio
     async def test_async_integration(self):
         """Test async operations integration."""
-        cache = create_cache(InMemory(), CachePolicyManager(None, 1, LRUEvictionPolicy(), 100), ScopeConfig())
+        cache = create_cache(InMemory(), CachePolicyManager(1, LRUEvictionPolicy(), 100), ScopeConfig())
 
         await cache.aset("async_key", "async_value", 60, "global")
         result = await cache.aget("async_key", "global")
@@ -95,7 +95,7 @@ class TestIntegration:
 
     def test_eviction_policy_integration(self):
         """Test eviction policy integration with cache."""
-        cache = create_cache(InMemory(), CachePolicyManager(None, 1, LRUEvictionPolicy(), 3), ScopeConfig())
+        cache = create_cache(InMemory(), CachePolicyManager(1, LRUEvictionPolicy(), 3), ScopeConfig())
 
         for i in range(5):
             cache.set(f"key_{i}", f"value_{i}", 60, "global")
@@ -106,7 +106,7 @@ class TestIntegration:
 
     def test_ttl_expiration_integration(self):
         """Test TTL expiration with background cleanup."""
-        cache = create_cache(InMemory(), CachePolicyManager(None, 0.1, LRUEvictionPolicy(), 100), ScopeConfig())
+        cache = create_cache(InMemory(), CachePolicyManager(0.1, LRUEvictionPolicy(), 100), ScopeConfig())
 
         cache.set("expire_key", "value", 0.2, "global")
         assert cache.get("expire_key", "global") == "value"
@@ -120,7 +120,7 @@ class TestIntegration:
         """Test concurrent operations across the system."""
         cache = create_cache(
             InMemory(),
-            CachePolicyManager(None, 1, LRUEvictionPolicy(), 1000),
+            CachePolicyManager(1, LRUEvictionPolicy(), 1000),
             ScopeConfig([ScopeLevel("organization", "org_id")]),
         )
 
@@ -150,7 +150,7 @@ class TestIntegration:
 
     def test_stampede_protection_integration(self):
         """Test stampede protection in real scenario."""
-        cache = create_cache(InMemory(), CachePolicyManager(None, 1, LRUEvictionPolicy(), 100), ScopeConfig())
+        cache = create_cache(InMemory(), CachePolicyManager(1, LRUEvictionPolicy(), 100), ScopeConfig())
 
         call_count = 0
 
@@ -174,7 +174,7 @@ class TestIntegration:
 
     def test_namespace_limits_integration(self):
         """Test namespace-specific limits integration."""
-        cache = create_cache(InMemory(), CachePolicyManager(None, 1, LRUEvictionPolicy(), 100), ScopeConfig())
+        cache = create_cache(InMemory(), CachePolicyManager(1, LRUEvictionPolicy(), 100), ScopeConfig())
 
         @cache.cache(ttl_seconds=60, scope="global", max_items=3)
         def limited_function(x):
@@ -196,7 +196,7 @@ class TestIntegration:
             ]
         )
 
-        cache = create_cache(InMemory(), CachePolicyManager(None, 1, LRUEvictionPolicy(), 100), scope_config)
+        cache = create_cache(InMemory(), CachePolicyManager(1, LRUEvictionPolicy(), 100), scope_config)
 
         cache.set("org_data", "org_value", 60, "organization", org_id="org_123")
         cache.set("user_data", "user_value", 60, "user", org_id="org_123", user_id="user_456")
@@ -218,7 +218,7 @@ class TestIntegration:
         """Test system recovery from various error conditions."""
         cache = create_cache(
             InMemory(),
-            CachePolicyManager(None, 1, LRUEvictionPolicy(), 100),
+            CachePolicyManager(1, LRUEvictionPolicy(), 100),
             ScopeConfig([ScopeLevel("organization", "org_id")]),
         )
 
@@ -252,7 +252,7 @@ class TestIntegration:
         """Test statistics collection across the system."""
         storage = InMemory()
         eviction_policy = LRUEvictionPolicy()
-        policy_manager = CachePolicyManager(cache_instance=None, cleanup_interval=1, policy=eviction_policy, max_size=5)
+        policy_manager = CachePolicyManager(cleanup_interval=1, policy=eviction_policy, max_size=5)
 
         cache = create_cache(storage, policy_manager, ScopeConfig())
 
@@ -286,7 +286,7 @@ class TestIntegration:
     @pytest.mark.asyncio
     async def test_mixed_sync_async_integration(self):
         """Test mixing synchronous and asynchronous operations."""
-        cache = create_cache(InMemory(), CachePolicyManager(None, 1, LRUEvictionPolicy(), 100), ScopeConfig())
+        cache = create_cache(InMemory(), CachePolicyManager(1, LRUEvictionPolicy(), 100), ScopeConfig())
 
         cache.set("sync_key", "sync_value", 60, "global")
 
@@ -306,7 +306,7 @@ class TestIntegration:
         """Test cache clearing across all components."""
         cache = create_cache(
             InMemory(),
-            CachePolicyManager(None, 1, LRUEvictionPolicy(), 100),
+            CachePolicyManager(1, LRUEvictionPolicy(), 100),
             ScopeConfig([ScopeLevel("organization", "org_id")]),
         )
 
