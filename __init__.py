@@ -14,7 +14,7 @@ from .storages.in_memory import InMemory
 from .storages.mongodb_storage import MongoDBStorage
 from .storages.redis_storage import RedisStorage
 
-__version__ = "1.4.0"
+__version__ = "1.4.1"
 
 __all__ = [
     "Cache",
