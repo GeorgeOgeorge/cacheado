@@ -22,19 +22,16 @@ class CachePolicyManager(ICachePolicyManager):
 
     __slots__ = ("_cache", "_cleanup_interval", "_policy", "_global_max_size", "_stop_event", "_cleanup_thread")
 
-    def __init__(
-        self, cache_instance: "Cache", cleanup_interval: int, policy: IEvictionPolicy, max_size: Optional[int] = None
-    ):
+    def __init__(self, cleanup_interval: int, policy: IEvictionPolicy, max_size: Optional[int] = None):
         """
         Initializes the policy manager.
 
         Args:
-            cache_instance (Cache): The main Cache instance.
             cleanup_interval (int): The interval (in seconds) for the cleanup loop.
             policy (IEvictionPolicy): The injected eviction policy (e.g., LRUPolicy).
             max_size (Optional[int]): The maximum number of items allowed globally.
         """
-        self._cache = cache_instance
+        self._cache: Optional["Cache"] = None
         self._cleanup_interval = cleanup_interval
         self._policy = policy
         self._global_max_size = max_size
@@ -44,6 +41,16 @@ class CachePolicyManager(ICachePolicyManager):
             f"CachePolicyManager initialized with policy={policy.__class__.__name__}, "
             f"max_size={max_size}, cleanup_interval={cleanup_interval}s"
         )
+
+    def set_cache_instance(self, cache: "Cache") -> None:
+        """
+        Sets the cache instance that this manager will operate on.
+        This is called by the Cache during its configuration.
+
+        Args:
+            cache (Cache): The Cache instance to associate with this manager.
+        """
+        self._cache = cache
 
     def start_background_cleanup(self) -> None:
         """

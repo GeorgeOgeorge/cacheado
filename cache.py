@@ -9,10 +9,13 @@ from typing import Any, Callable, DefaultDict, Dict, List, Optional, Tuple, Unio
 
 from typing_extensions import ParamSpec, TypeVar
 
+from cache_policies.cache_policy_manager import CachePolicyManager
 from cache_scopes.scope_config import ScopeConfig
 from cache_types import _CacheKey, _CacheScope, _CacheValue
+from eviction_policies.lre_eviction import LRUEvictionPolicy
 from protocols.cache_policy_manager_protocol import ICachePolicyManager
 from protocols.storage_provider import IStorageProvider
+from storages.in_memory import InMemory
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -69,6 +72,7 @@ class Cache:
                     self._storage = backend
                     self._scope_config = scope_config
                     self._policy_manager = policy_manager
+                    self._policy_manager.set_cache_instance(self)
                     self._policy_manager.start_background_cleanup()
                 else:
                     logging.warning("Cache has already been configured.")
@@ -654,25 +658,35 @@ class Cache:
 
 
 def create_cache(
-    backend: IStorageProvider, policy_manager: ICachePolicyManager, scope_config: Optional[ScopeConfig] = None
+    backend: Optional[IStorageProvider] = None,
+    policy_manager: Optional[ICachePolicyManager] = None,
+    scope_config: Optional[ScopeConfig] = None,
 ) -> Cache:
     """
-    Factory function to create and configure a Cache instance.
-
-    This replaces the Singleton pattern with explicit dependency injection.
+    Creates and configures a new Cache instance. This factory allows for dependency injection of the backend,
+        policy manager, and scope configuration. Defaults are provided for a simple in-memory, LRU-based cache.
 
     Args:
-        backend: Storage backend (required)
-        policy_manager: Policy manager (required)
-        scope_config: Scope configuration
+        backend (Optional[IStorageProvider]): The storage provider (e.g., InMemory, Redis). Defaults to `InMemory()`
+            if None.
+        policy_manager (Optional[ICachePolicyManager]): The manager for eviction policies (e.g., LRU, LFU).
+            Defaults to a `CachePolicyManager` with `LRUEvictionPolicy` if None.
+        scope_config (Optional[ScopeConfig]): The scope configuration object.
+            Defaults to a basic `ScopeConfig()` if None.
 
     Returns:
-        Configured Cache instance
+        Cache: A fully configured Cache instance.
     """
     cache = Cache()
 
-    if hasattr(policy_manager, "_cache") and policy_manager._cache is None:
-        policy_manager._cache = cache
+    final_backend = backend or InMemory()
+    final_policy_manager = policy_manager or CachePolicyManager(cleanup_interval=60, policy=LRUEvictionPolicy())
+    final_scope_config = scope_config or ScopeConfig()
 
-    cache.configure(backend=backend, policy_manager=policy_manager, scope_config=scope_config or ScopeConfig())
+    cache.configure(
+        backend=final_backend,
+        policy_manager=final_policy_manager,
+        scope_config=final_scope_config,
+    )
+
     return cache
