@@ -1,7 +1,10 @@
-from typing import Optional, Protocol
+from typing import TYPE_CHECKING, Optional, Protocol
 
 from cache_types import _CacheKey
 from protocols.eviction_policy import IEvictionPolicy
+
+if TYPE_CHECKING:
+    from cache import Cache
 
 
 class ICachePolicyManager(Protocol):
@@ -25,6 +28,16 @@ class ICachePolicyManager(Protocol):
     @property
     def cleanup_interval(self) -> int:
         """Returns the cleanup interval in seconds."""
+        ...
+
+    def set_cache_instance(self, cache: "Cache") -> None:
+        """
+        Sets the cache instance that this manager will operate on.
+        This is called by the Cache during its configuration.
+
+        Args:
+            cache: The Cache instance to associate with this manager.
+        """
         ...
 
     def start_background_cleanup(self) -> None:

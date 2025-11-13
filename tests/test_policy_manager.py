@@ -14,7 +14,8 @@ class TestCachePolicyManager:
         cache_mock = Mock()
         policy = LRUEvictionPolicy()
 
-        manager = CachePolicyManager(cache_instance=cache_mock, cleanup_interval=5, policy=policy, max_size=100)
+        manager = CachePolicyManager(cleanup_interval=5, policy=policy, max_size=100)
+        manager.set_cache_instance(cache_mock)
 
         assert manager._cache is cache_mock
         assert manager._cleanup_interval == 5
@@ -26,7 +27,8 @@ class TestCachePolicyManager:
         cache_mock = Mock()
         policy = LRUEvictionPolicy()
 
-        manager = CachePolicyManager(cache_instance=cache_mock, cleanup_interval=1, policy=policy, max_size=100)
+        manager = CachePolicyManager(cleanup_interval=1, policy=policy, max_size=100)
+        manager.set_cache_instance(cache_mock)
 
         manager.start_background_cleanup()
 
@@ -40,7 +42,8 @@ class TestCachePolicyManager:
         cache_mock = Mock()
         policy = LRUEvictionPolicy()
 
-        manager = CachePolicyManager(cache_instance=cache_mock, cleanup_interval=1, policy=policy, max_size=100)
+        manager = CachePolicyManager(cleanup_interval=1, policy=policy, max_size=100)
+        manager.set_cache_instance(cache_mock)
 
         manager.start_background_cleanup()
         assert manager._cleanup_thread.is_alive()
@@ -54,7 +57,8 @@ class TestCachePolicyManager:
         policy_mock = Mock()
         policy_mock.notify_set.return_value = None
 
-        manager = CachePolicyManager(cache_instance=cache_mock, cleanup_interval=5, policy=policy_mock, max_size=100)
+        manager = CachePolicyManager(cleanup_interval=5, policy=policy_mock, max_size=100)
+        manager.set_cache_instance(cache_mock)
 
         key: _CacheKey = ("global", "test_ns", ("arg1",))
         result = manager.notify_set(key, "test_ns", 10)
@@ -67,7 +71,8 @@ class TestCachePolicyManager:
         cache_mock = Mock()
         policy_mock = Mock()
 
-        manager = CachePolicyManager(cache_instance=cache_mock, cleanup_interval=5, policy=policy_mock, max_size=100)
+        manager = CachePolicyManager(cleanup_interval=5, policy=policy_mock, max_size=100)
+        manager.set_cache_instance(cache_mock)
 
         key: _CacheKey = ("global", "test_ns", ("arg1",))
         manager.notify_get(key, "test_ns")
@@ -79,7 +84,8 @@ class TestCachePolicyManager:
         cache_mock = Mock()
         policy_mock = Mock()
 
-        manager = CachePolicyManager(cache_instance=cache_mock, cleanup_interval=5, policy=policy_mock, max_size=100)
+        manager = CachePolicyManager(cleanup_interval=5, policy=policy_mock, max_size=100)
+        manager.set_cache_instance(cache_mock)
 
         key: _CacheKey = ("global", "test_ns", ("arg1",))
         manager.notify_evict(key, "test_ns")
@@ -91,7 +97,8 @@ class TestCachePolicyManager:
         cache_mock = Mock()
         policy_mock = Mock()
 
-        manager = CachePolicyManager(cache_instance=cache_mock, cleanup_interval=5, policy=policy_mock, max_size=100)
+        manager = CachePolicyManager(cleanup_interval=5, policy=policy_mock, max_size=100)
+        manager.set_cache_instance(cache_mock)
 
         manager.notify_clear()
 
@@ -103,7 +110,8 @@ class TestCachePolicyManager:
         policy_mock = Mock()
         policy_mock.get_namespace_count.return_value = 5
 
-        manager = CachePolicyManager(cache_instance=cache_mock, cleanup_interval=5, policy=policy_mock, max_size=100)
+        manager = CachePolicyManager(cleanup_interval=5, policy=policy_mock, max_size=100)
+        manager.set_cache_instance(cache_mock)
 
         result = manager.get_namespace_count()
 
@@ -116,7 +124,8 @@ class TestCachePolicyManager:
         policy_mock = Mock()
         policy_mock.get_global_size.return_value = 42
 
-        manager = CachePolicyManager(cache_instance=cache_mock, cleanup_interval=5, policy=policy_mock, max_size=100)
+        manager = CachePolicyManager(cleanup_interval=5, policy=policy_mock, max_size=100)
+        manager.set_cache_instance(cache_mock)
 
         result = manager.get_global_size()
 
@@ -128,7 +137,8 @@ class TestCachePolicyManager:
         cache_mock = Mock()
         policy = LRUEvictionPolicy()
 
-        manager = CachePolicyManager(cache_instance=cache_mock, cleanup_interval=5, policy=policy, max_size=100)
+        manager = CachePolicyManager(cleanup_interval=5, policy=policy, max_size=100)
+        manager.set_cache_instance(cache_mock)
 
         assert manager.policy is policy
         assert manager.global_max_size == 100
@@ -146,7 +156,8 @@ class TestCachePolicyManager:
 
         policy = LRUEvictionPolicy()
 
-        manager = CachePolicyManager(cache_instance=cache_mock, cleanup_interval=0.1, policy=policy, max_size=100)
+        manager = CachePolicyManager(cleanup_interval=0.1, policy=policy, max_size=100)
+        manager.set_cache_instance(cache_mock)
 
         manager.start_background_cleanup()
         time.sleep(0.2)
@@ -161,7 +172,8 @@ class TestCachePolicyManager:
 
         policy = LRUEvictionPolicy()
 
-        manager = CachePolicyManager(cache_instance=cache_mock, cleanup_interval=0.1, policy=policy, max_size=100)
+        manager = CachePolicyManager(cleanup_interval=0.1, policy=policy, max_size=100)
+        manager.set_cache_instance(cache_mock)
 
         manager.start_background_cleanup()
         time.sleep(0.2)
@@ -175,7 +187,8 @@ class TestCachePolicyManager:
         policy_mock = Mock()
         policy_mock.notify_set.side_effect = Exception("Test error")
 
-        manager = CachePolicyManager(cache_instance=cache_mock, cleanup_interval=5, policy=policy_mock, max_size=100)
+        manager = CachePolicyManager(cleanup_interval=5, policy=policy_mock, max_size=100)
+        manager.set_cache_instance(cache_mock)
 
         key: _CacheKey = ("global", "test_ns", ("arg1",))
 
@@ -189,7 +202,8 @@ class TestCachePolicyManager:
 
         policy = LRUEvictionPolicy()
 
-        manager = CachePolicyManager(cache_instance=cache_mock, cleanup_interval=0.1, policy=policy, max_size=100)
+        manager = CachePolicyManager(cleanup_interval=0.1, policy=policy, max_size=100)
+        manager.set_cache_instance(cache_mock)
 
         manager.start_background_cleanup()
         time.sleep(0.2)
@@ -200,7 +214,8 @@ class TestCachePolicyManager:
         cache_mock = Mock()
         policy = LRUEvictionPolicy()
 
-        manager = CachePolicyManager(cache_instance=cache_mock, cleanup_interval=1, policy=policy, max_size=100)
+        manager = CachePolicyManager(cleanup_interval=1, policy=policy, max_size=100)
+        manager.set_cache_instance(cache_mock)
 
         for _ in range(3):
             manager.start_background_cleanup()
@@ -214,7 +229,8 @@ class TestCachePolicyManager:
         cache_mock = Mock()
         policy = LRUEvictionPolicy()
 
-        manager = CachePolicyManager(cache_instance=cache_mock, cleanup_interval=1, policy=policy, max_size=100)
+        manager = CachePolicyManager(cleanup_interval=1, policy=policy, max_size=100)
+        manager.set_cache_instance(cache_mock)
 
         manager.start_background_cleanup()
         first_thread = manager._cleanup_thread
@@ -231,7 +247,8 @@ class TestCachePolicyManager:
         cache_mock = Mock()
         policy = LRUEvictionPolicy()
 
-        manager = CachePolicyManager(cache_instance=cache_mock, cleanup_interval=1, policy=policy, max_size=100)
+        manager = CachePolicyManager(cleanup_interval=1, policy=policy, max_size=100)
+        manager.set_cache_instance(cache_mock)
 
         manager.stop_background_cleanup()
 
@@ -240,7 +257,8 @@ class TestCachePolicyManager:
         cache_mock = Mock()
         policy = LRUEvictionPolicy()
 
-        manager = CachePolicyManager(cache_instance=cache_mock, cleanup_interval=1, policy=policy, max_size=100)
+        manager = CachePolicyManager(cleanup_interval=1, policy=policy, max_size=100)
+        manager.set_cache_instance(cache_mock)
 
         manager.start_background_cleanup()
 
@@ -260,7 +278,8 @@ class TestCachePolicyManager:
 
         policy = LRUEvictionPolicy()
 
-        manager = CachePolicyManager(cache_instance=cache_mock, cleanup_interval=0.1, policy=policy, max_size=100)
+        manager = CachePolicyManager(cleanup_interval=0.1, policy=policy, max_size=100)
+        manager.set_cache_instance(cache_mock)
 
         manager.start_background_cleanup()
         time.sleep(0.2)

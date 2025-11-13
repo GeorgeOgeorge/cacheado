@@ -33,7 +33,7 @@ def eviction_policy():
 @pytest.fixture
 def policy_manager(eviction_policy):
     """Cache policy manager."""
-    return CachePolicyManager(cache_instance=None, cleanup_interval=1, policy=eviction_policy, max_size=100)
+    return CachePolicyManager(cleanup_interval=1, policy=eviction_policy, max_size=100)
 
 
 @pytest.fixture
