@@ -3,7 +3,12 @@ import pickle
 import threading
 from typing import List, Optional
 
-import pymemcache.client.base
+try:
+    import pymemcache.client.base
+except ImportError:
+    raise ImportError(        
+        "The 'pymemcache' package is required for MemcachedStorage. Install it via 'pip install cacehado[memcached]'."
+    )
 
 from cache_types import _CacheKey, _CacheValue
 from protocols.storage_provider import IStorageProvider

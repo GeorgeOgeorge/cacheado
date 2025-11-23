@@ -3,7 +3,12 @@ import pickle
 import threading
 from typing import List, Optional
 
-import redis
+try:
+    import redis
+except ImportError:
+    raise ImportError(
+        "The 'redis' package is required for RedisStorage. Install it via 'pip install cacehado[redis]'."
+    )
 
 from cache_types import _CacheKey, _CacheValue
 from protocols.storage_provider import IStorageProvider

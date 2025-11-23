@@ -3,9 +3,14 @@ import pickle
 import threading
 from typing import List, Optional
 
-from pymongo import MongoClient
-from pymongo.collection import Collection
-from pymongo.database import Database
+try:
+    from pymongo import MongoClient
+    from pymongo.collection import Collection
+    from pymongo.database import Database
+except ImportError:
+    raise ImportError(
+        "The 'pymongo' package is required for MongoDBStorage. Install it via 'pip install cacehado[mongodb]'."
+    )
 
 from cache_types import _CacheKey, _CacheValue
 from protocols.storage_provider import IStorageProvider
