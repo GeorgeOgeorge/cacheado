@@ -81,3 +81,54 @@ class InMemory(IStorageProvider):
         Per the "let it crash" philosophy, we trust dict atomicity.
         """
         self._cache.clear()
+
+    async def aget(self, key: _CacheKey) -> Optional[_CacheValue]:
+        """
+        Asynchronously gets a value tuple (value, expiry) from memory.
+        Non-blocking operation.
+
+        Args:
+            key (_CacheKey): The internal key to get.
+
+        Returns:
+            Optional[_CacheValue]: The stored tuple, or None.
+        """
+        return self._cache.get(key, None)
+
+    async def aset(self, key: _CacheKey, value: _CacheValue) -> None:
+        """
+        Asynchronously sets a value tuple (value, expiry) in memory.
+        Non-blocking operation.
+
+        Args:
+            key (_CacheKey): The internal key to set.
+            value (_CacheValue): The (value, expiry) tuple to store.
+        """
+        self._cache[key] = value
+
+    async def aevict(self, key: _CacheKey) -> None:
+        """
+        Asynchronously evicts a key from memory.
+        Non-blocking operation.
+
+        Args:
+            key (_CacheKey): The internal key to evict.
+        """
+        self._cache.pop(key, None)
+
+    async def aget_all_keys(self) -> List[_CacheKey]:
+        """
+        Asynchronously gets a copy of all keys in memory.
+        Non-blocking operation.
+
+        Returns:
+            List[_CacheKey]: A list of all cache keys.
+        """
+        return list(self._cache.keys())
+
+    async def aclear(self) -> None:
+        """
+        Asynchronously clears the entire in-memory storage.
+        Non-blocking operation.
+        """
+        self._cache.clear()

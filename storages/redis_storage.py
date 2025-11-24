@@ -137,3 +137,57 @@ class RedisStorage(IStorageProvider):
             self._redis.flushdb()
         except Exception as e:
             logging.error(f"Error clearing storage: {e}")
+
+    # TODO use aioredis or redis[asyncio].
+
+    async def aget(self, key: _CacheKey) -> Optional[_CacheValue]:
+        """
+        Asynchronously gets a value tuple (value, expiry) from Redis.
+        Non-blocking operation.
+
+        Args:
+            key (_CacheKey): The internal key to get.
+
+        Returns:
+            Optional[_CacheValue]: The stored tuple, or None.
+        """
+        return self.get(key)
+
+    async def aset(self, key: _CacheKey, value: _CacheValue) -> None:
+        """
+        Asynchronously sets a value tuple (value, expiry) in Redis.
+        Non-blocking operation.
+
+        Args:
+            key (_CacheKey): The internal key to set.
+            value (_CacheValue): The (value, expiry) tuple to store.
+        """
+        self.set(key, value)
+
+    async def aevict(self, key: _CacheKey) -> None:
+        """
+        Asynchronously evicts a key from Redis.
+        Non-blocking operation.
+
+        Args:
+            key (_CacheKey): The internal key to evict.
+        """
+        self.evict(key)
+
+    async def aget_all_keys(self) -> List[_CacheKey]:
+        """
+        Asynchronously gets a copy of all keys in Redis.
+        Non-blocking operation.
+
+        Returns:
+            List[_CacheKey]: A list of all cache keys.
+        """
+        return self.get_all_keys()
+
+    async def aclear(self) -> None:
+        """
+        Asynchronously clears the entire Redis storage.
+        Non-blocking operation.
+        """
+        self.clear()
+

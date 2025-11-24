@@ -12,12 +12,19 @@ class TestProtocols:
 
     def test_storage_provider_protocol(self):
         """Test IStorageProvider protocol methods exist."""
-        # Test that protocol has required methods
+        # Test that protocol has required sync methods
         assert hasattr(IStorageProvider, "get")
         assert hasattr(IStorageProvider, "set")
         assert hasattr(IStorageProvider, "evict")
         assert hasattr(IStorageProvider, "get_all_keys")
         assert hasattr(IStorageProvider, "clear")
+
+        # Test that protocol has required async methods
+        assert hasattr(IStorageProvider, "aget")
+        assert hasattr(IStorageProvider, "aset")
+        assert hasattr(IStorageProvider, "aevict")
+        assert hasattr(IStorageProvider, "aget_all_keys")
+        assert hasattr(IStorageProvider, "aclear")
 
     def test_eviction_policy_protocol(self):
         """Test IEvictionPolicy protocol methods exist."""
@@ -69,7 +76,7 @@ class TestProtocols:
         assert len(storage_annotations) == 0  # Protocols don't have class-level annotations
 
         # Test that methods exist and are callable
-        methods_to_check = ["get", "set", "evict", "get_all_keys", "clear"]
+        methods_to_check = ["get", "set", "evict", "get_all_keys", "clear", "aget", "aset", "aevict", "aget_all_keys", "aclear"]
 
         for method_name in methods_to_check:
             method = getattr(IStorageProvider, method_name)

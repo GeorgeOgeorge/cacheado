@@ -1,17 +1,15 @@
 import asyncio
 import logging
 import pickle
-import threading
 import time
-from collections import defaultdict
 from functools import wraps
-from typing import Any, Callable, DefaultDict, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from typing_extensions import ParamSpec, TypeVar
 
 from cache_policies.cache_policy_manager import CachePolicyManager
 from cache_scopes.scope_config import ScopeConfig
-from cache_types import _CacheKey, _CacheScope, _CacheValue
+from cache_types import _CacheKey, _CacheScope
 from eviction_policies.lre_eviction import LRUEvictionPolicy
 from protocols.cache_policy_manager_protocol import ICachePolicyManager
 from protocols.storage_provider import IStorageProvider
@@ -39,11 +37,9 @@ class Cache:
         "_storage",
         "_policy_manager",
         "_scope_config",
-        "_calculation_locks",
         "_hits",
         "_misses",
         "_evictions",
-        "_instance_lock",
     )
 
     def __init__(self) -> None:
@@ -51,11 +47,9 @@ class Cache:
         self._storage: Optional[IStorageProvider] = None
         self._policy_manager: Optional[ICachePolicyManager] = None
         self._scope_config: Optional[ScopeConfig] = None
-        self._calculation_locks: DefaultDict[_CacheKey, threading.Lock] = defaultdict(threading.Lock)
         self._hits: int = 0
         self._misses: int = 0
         self._evictions: int = 0
-        self._instance_lock: threading.Lock = threading.Lock()
 
     def configure(self, backend: IStorageProvider, policy_manager: ICachePolicyManager, scope_config: ScopeConfig) -> None:
         """
@@ -66,18 +60,15 @@ class Cache:
             policy_manager (ICachePolicyManager): Policy manager (required).
             scope_config (ScopeConfig): Scope configuration (defaults to DEFAULT_SCOPE_CONFIG).
         """
-        if self._policy_manager is None:
-            with self._instance_lock:
-                if self._policy_manager is None:
-                    self._storage = backend
-                    self._scope_config = scope_config
-                    self._policy_manager = policy_manager
-                    self._policy_manager.set_cache_instance(self)
-                    self._policy_manager.start_background_cleanup()
-                else:
-                    logging.warning("Cache has already been configured.")
-        else:
+        if self._policy_manager is not None:
             logging.warning("Cache has already been configured.")
+            return
+
+        self._storage = backend
+        self._scope_config = scope_config
+        self._policy_manager = policy_manager
+        self._policy_manager.set_cache_instance(self)
+        self._policy_manager.start_background_cleanup()
 
     def _get_all_keys_from_storage(self) -> List[_CacheKey]:
         """
@@ -168,9 +159,6 @@ class Cache:
 
         self._storage.evict(key)
         self._evictions += 1
-
-        if key in self._calculation_locks:
-            del self._calculation_locks[key]
 
         if notify_policy:
             self._policy_manager.notify_evict(key, namespace)
@@ -339,26 +327,18 @@ class Cache:
                 logging.warning(f"Cache scope error for {func.__name__}: {e}. Skipping cache.")
                 return func(*args, **kwargs)
 
-            cached_value = self._internal_get(key, namespace)
-            if cached_value is not None:
-                return cached_value  # type: ignore
+            try:
+                cached_value = self._internal_get(key, namespace)
+                if cached_value is not None:
+                    return cached_value  # type: ignore
 
-            calc_lock = self._calculation_locks[key]
-
-            with calc_lock:
-                try:
-                    cached_value = self._internal_get(key, namespace)
-                    if cached_value is not None:
-                        return cached_value  # type: ignore
-
-                    logging.info(f"Cache miss and calculation for key: {key}")
-                    new_value = func(*args, **kwargs)
-
-                    self._internal_set(key, new_value, ttl_seconds, namespace, max_items)
-                    return new_value
-                except Exception as e:
-                    logging.error(f"Error in cache wrapper for {func.__name__}: {e}")
-                    return func(*args, **kwargs)  # type: ignore
+                logging.info(f"Cache miss and calculation for key: {key}")
+                new_value = func(*args, **kwargs)
+                self._internal_set(key, new_value, ttl_seconds, namespace, max_items)
+                return new_value
+            except Exception as e:
+                logging.error(f"Error in cache wrapper for {func.__name__}: {e}")
+                return func(*args, **kwargs)  # type: ignore
 
         return _sync_wrapper
 
@@ -396,29 +376,19 @@ class Cache:
                 logging.warning(f"Cache scope error for {func.__name__}: {e}. Skipping cache.")
                 return await func(*args, **kwargs)  # type: ignore[misc,no-any-return]
 
-            cached_value = await asyncio.to_thread(self._internal_get, key, namespace)
-            if cached_value is not None:
-                return cached_value  # type: ignore
-
-            calc_lock = self._calculation_locks[key]
-
-            await asyncio.to_thread(calc_lock.acquire)
             try:
-                try:
-                    cached_value = await asyncio.to_thread(self._internal_get, key, namespace)
-                    if cached_value is not None:
-                        return cached_value  # type: ignore
+                cached_value = await asyncio.to_thread(self._internal_get, key, namespace)
+                if cached_value is not None:
+                    return cached_value  # type: ignore
 
-                    logging.info(f"Cache miss and calculation for key: {key}")
-                    new_value = await func(*args, **kwargs)  # type: ignore
+                logging.info(f"Cache miss and calculation for key: {key}")
+                new_value = await func(*args, **kwargs)  # type: ignore
 
-                    await asyncio.to_thread(self._internal_set, key, new_value, ttl_seconds, namespace, max_items)
-                    return new_value  # type: ignore[no-any-return]
-                except Exception as e:
-                    logging.error(f"Error in async cache wrapper for {func.__name__}: {e}")
-                    return await func(*args, **kwargs)  # type: ignore[misc,no-any-return]
-            finally:
-                calc_lock.release()
+                await asyncio.to_thread(self._internal_set, key, new_value, ttl_seconds, namespace, max_items)
+                return new_value  # type: ignore[no-any-return]
+            except Exception as e:
+                logging.error(f"Error in async cache wrapper for {func.__name__}: {e}")
+                return await func(*args, **kwargs)  # type: ignore[misc,no-any-return]
 
         return _async_wrapper  # type: ignore
 
@@ -497,19 +467,17 @@ class Cache:
         Safely clears the entire cache (storage and policy).
         """
         try:
-            with self._instance_lock:
-                if self._storage:
-                    self._storage.clear()
+            if self._storage:
+                self._storage.clear()
 
-                if self._policy_manager:
-                    self._policy_manager.notify_clear()
+            if self._policy_manager:
+                self._policy_manager.notify_clear()
 
-                self._calculation_locks.clear()
-                self._hits = 0
-                self._misses = 0
-                self._evictions = 0
+            self._hits = 0
+            self._misses = 0
+            self._evictions = 0
 
-                logging.warning("Cache has been cleared.")
+            logging.warning("Cache has been cleared.")
         except Exception as e:
             logging.error(f"Error clearing cache: {e}")
             raise
@@ -585,21 +553,19 @@ class Cache:
             Dict[str, Any]: A dict containing keys like 'hits', 'misses',
             'evictions', 'current_size', etc.
         """
-        with self._instance_lock:
-            g_size = 0
-            ns_count = 0
-            if self._policy_manager:
-                g_size = self._policy_manager.get_global_size()
-                ns_count = self._policy_manager.get_namespace_count()
+        g_size = 0
+        ns_count = 0
+        if self._policy_manager:
+            g_size = self._policy_manager.get_global_size()
+            ns_count = self._policy_manager.get_namespace_count()
 
-            return {
-                "hits": self._hits,
-                "misses": self._misses,
-                "evictions": self._evictions,
-                "current_size": g_size,
-                "tracked_namespaces": ns_count,
-                "total_calc_locks": len(self._calculation_locks),
-            }
+        return {
+            "hits": self._hits,
+            "misses": self._misses,
+            "evictions": self._evictions,
+            "current_size": g_size,
+            "tracked_namespaces": ns_count,
+        }
 
     def evict_by_scope(self, scope: _CacheScope, scope_params: Optional[Dict[str, Any]] = None, **kwargs: Any) -> int:
         """
