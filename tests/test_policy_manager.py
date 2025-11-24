@@ -152,7 +152,7 @@ class TestCachePolicyManager:
         expired_value = ("value", time.monotonic() - 10)
 
         cache_mock._get_all_keys_from_storage.return_value = [expired_key]
-        cache_mock._get_value_no_lock_from_storage.return_value = expired_value
+        cache_mock._internal_get.return_value = expired_value
 
         policy = LRUEvictionPolicy()
 
@@ -274,7 +274,7 @@ class TestCachePolicyManager:
         valid_value = ("value", time.monotonic() + 60)
 
         cache_mock._get_all_keys_from_storage.return_value = [valid_key]
-        cache_mock._get_value_no_lock_from_storage.return_value = valid_value
+        cache_mock._internal_get.return_value = valid_value
 
         policy = LRUEvictionPolicy()
 
@@ -286,4 +286,4 @@ class TestCachePolicyManager:
         manager.stop_background_cleanup()
 
         cache_mock._get_all_keys_from_storage.assert_called()
-        cache_mock._get_value_no_lock_from_storage.assert_called_with(valid_key)
+        cache_mock._internal_get.assert_called_with(valid_key, valid_key[1])

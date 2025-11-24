@@ -16,7 +16,7 @@ class InMemory(IStorageProvider):
 
     __slots__ = ("_cache",)
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initializes the in-memory storage."""
         self._cache: Dict[_CacheKey, _CacheValue] = {}
         logging.info("InMemoryStorageProvider initialized.")

@@ -15,7 +15,6 @@ class TestInMemoryStorage:
         """Test storage initialization."""
         storage = InMemory()
         assert len(storage._cache) == 0
-        assert len(storage._key_locks) == 0
 
     def test_basic_get_set(self):
         """Test basic get/set operations."""
@@ -131,18 +130,6 @@ class TestInMemoryStorage:
         key: _CacheKey = ("global", "nonexistent", ("arg1",))
 
         storage.evict(key)
-
-    def test_lock_cleanup_on_evict(self):
-        """Test that locks are cleaned up on eviction."""
-        storage = InMemory()
-        key: _CacheKey = ("global", "test", ("arg1",))
-        value: _CacheValue = ("test_value", time.monotonic() + 60)
-
-        storage.set(key, value)
-        assert key in storage._key_locks
-
-        storage.evict(key)
-        assert key not in storage._key_locks
 
     def test_error_handling_in_get(self):
         """Test error handling in get operation."""

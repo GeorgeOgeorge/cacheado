@@ -279,7 +279,6 @@ class TestIntegration:
         assert stats["evictions"] >= initial_evictions + 5
         assert stats["current_size"] <= 5
         assert "tracked_namespaces" in stats
-        assert "total_calc_locks" in stats
 
         policy_manager.stop_background_cleanup()
 
