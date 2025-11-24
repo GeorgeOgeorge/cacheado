@@ -92,15 +92,11 @@ class CachePolicyManager(ICachePolicyManager):
                     continue
 
                 logging.info(f"Background cleanup: checking {len(all_keys)} keys.")
-
-                current_time = time.monotonic()
                 expired_count = 0
 
                 for key in all_keys:
-                    value_tuple = self._cache._get_value_no_lock_from_storage(key)
-                    if value_tuple and current_time > value_tuple[1]:
-                        namespace = key[1]
-                        self._cache._internal_get(key, namespace)
+                    namespace = key[1]
+                    if self._cache._internal_get(key, namespace) is None:
                         expired_count += 1
 
                 if expired_count > 0:

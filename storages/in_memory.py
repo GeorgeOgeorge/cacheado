@@ -1,7 +1,5 @@
 import logging
-import threading
-from collections import defaultdict
-from typing import DefaultDict, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from cache_types import _CacheKey, _CacheValue
 from protocols.storage_provider import IStorageProvider
@@ -9,24 +7,26 @@ from protocols.storage_provider import IStorageProvider
 
 class InMemory(IStorageProvider):
     """
-    Thread-safe, in-memory implementation of the IStorageProvider.
+    High-performance in-memory implementation of the IStorageProvider.
 
-    Uses key-based locks for high-concurrency atomic operations.
+    Uses zero-lock philosophy for all operations on atomic dict operations (get/set/evict/clear).
+    Relies on Python's GIL and atomic dict operations for thread safety.
     Optimized with __slots__ for memory efficiency.
     """
 
-    __slots__ = ("_cache", "_key_locks", "_instance_lock")
+    __slots__ = ("_cache",)
 
     def __init__(self):
         """Initializes the in-memory storage."""
         self._cache: Dict[_CacheKey, _CacheValue] = {}
-        self._key_locks: DefaultDict[_CacheKey, threading.Lock] = defaultdict(threading.Lock)
-        self._instance_lock = threading.Lock()
         logging.info("InMemoryStorageProvider initialized.")
 
     def get(self, key: _CacheKey) -> Optional[_CacheValue]:
         """
-        Atomically gets a value tuple (value, expiry) from memory.
+        Gets a value tuple (value, expiry) from memory without locking.
+
+        The dict.get() operation is atomic in Python, so no lock is needed.
+        Per the "let it crash" philosophy, we trust the atomicity of dict operations.
 
         Args:
             key (_CacheKey): The internal key to get.
@@ -34,76 +34,50 @@ class InMemory(IStorageProvider):
         Returns:
             Optional[_CacheValue]: The stored tuple, or None.
         """
-        try:
-            with self._key_locks[key]:
-                return self._cache.get(key)
-        except Exception as e:
-            logging.error(f"Error getting key {key}: {e}")
-            return None
-
-    def get_value_no_lock(self, key: _CacheKey) -> Optional[_CacheValue]:
-        """
-        Performs a non-locking ("dirty") read for the cleanup loop.
-
-        Args:
-            key (_CacheKey): The internal key to look up.
-
-        Returns:
-            Optional[_CacheValue]: The stored tuple (value, expiry) or None.
-        """
-        return self._cache.get(key)
+        return self._cache.get(key, None)
 
     def set(self, key: _CacheKey, value: _CacheValue) -> None:
         """
-        Atomically sets a value tuple (value, expiry) in memory.
+        Sets a value tuple (value, expiry) in memory without locking.
+
+        The dict[key] = value operation is atomic in Python.
+        Per the "let it crash" philosophy, the last writer wins (acceptable for cache).
 
         Args:
             key (_CacheKey): The internal key to set.
             value (_CacheValue): The (value, expiry) tuple to store.
         """
-        try:
-            with self._key_locks[key]:
-                self._cache[key] = value
-        except Exception as e:
-            logging.error(f"Error setting key {key}: {e}")
-            raise
+        self._cache[key] = value
 
     def evict(self, key: _CacheKey) -> None:
         """
-        Atomically evicts a key from memory and cleans up its lock.
+        Evicts a key from memory without locking.
+
+        Uses .pop(key, None) which is atomic in Python.
+        Per the "let it crash" philosophy, we trust dict atomicity.
 
         Args:
             key (_CacheKey): The internal key to evict.
         """
-        try:
-            with self._key_locks[key]:
-                if key in self._cache:
-                    del self._cache[key]
-
-                if key in self._key_locks:
-                    del self._key_locks[key]
-        except Exception as e:
-            logging.error(f"Error evicting key {key}: {e}")
+        self._cache.pop(key, None)
 
     def get_all_keys(self) -> List[_CacheKey]:
         """
-        Atomically gets a copy of all keys in memory.
+        Gets a copy of all keys in memory.
+
+        Returns a snapshot of keys at the time of call.
+        Per the "let it crash" philosophy, we trust list() snapshot operation.
 
         Returns:
             List[_CacheKey]: A list of all cache keys.
         """
-        try:
-            with self._instance_lock:
-                return list(self._cache.keys())
-        except Exception as e:
-            logging.error(f"Error getting all keys: {e}")
-            return []
+        return list(self._cache.keys())
 
     def clear(self) -> None:
-        """Atomically clears the entire in-memory storage."""
-        try:
-            with self._instance_lock:
-                self._cache.clear()
-                self._key_locks.clear()
-        except Exception as e:
-            logging.error(f"Error clearing storage: {e}")
+        """
+        Clears the entire in-memory storage.
+
+        Uses dict.clear() which is atomic in Python.
+        Per the "let it crash" philosophy, we trust dict atomicity.
+        """
+        self._cache.clear()

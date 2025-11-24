@@ -90,20 +90,6 @@ class Cache:
             return self._storage.get_all_keys()
         return []
 
-    def _get_value_no_lock_from_storage(self, key: _CacheKey) -> Optional[_CacheValue]:
-        """
-        (Hook) Performs a non-locking read from storage.
-
-        Args:
-            key (_CacheKey): The internal key to look up.
-
-        Returns:
-            Optional[_CacheValue]: The stored tuple (value, expiry) or None.
-        """
-        if self._storage:
-            return self._storage.get_value_no_lock(key)
-        return None
-
     def _internal_get(self, key: _CacheKey, namespace: str) -> Optional[Any]:
         """
         Orchestrates getting an item. Delegates storage, checks expiry, notifies policy.

@@ -1,6 +1,5 @@
 import logging
 import pickle
-import threading
 from typing import List, Optional
 
 try:
@@ -16,13 +15,14 @@ from protocols.storage_provider import IStorageProvider
 
 class MemcachedStorage(IStorageProvider):
     """
-    Thread-safe Memcached implementation of the IStorageProvider.
+    High-performance Memcached implementation of the IStorageProvider.
 
     Uses Memcached as the backend storage with server configuration.
     Serializes cache keys and values using pickle for Memcached compatibility.
+    Memcached operations are atomic by default, so zero-lock philosophy applies.
     """
 
-    __slots__ = ("_client", "_instance_lock")
+    __slots__ = ("_client",)
 
     def __init__(self, server: str = "localhost:11211"):
         """Initializes the Memcached storage provider.
@@ -35,7 +35,6 @@ class MemcachedStorage(IStorageProvider):
 
         try:
             self._client = pymemcache.client.base.Client(server)
-            self._instance_lock = threading.Lock()
 
             self._client.version()
             logging.info(f"MemcachedStorage initialized with server: {server}")
@@ -78,19 +77,6 @@ class MemcachedStorage(IStorageProvider):
         except Exception as e:
             logging.error(f"Error getting key {key}: {e}")
             return None
-
-    def get_value_no_lock(self, key: _CacheKey) -> Optional[_CacheValue]:
-        """
-        Performs a non-locking read for the cleanup loop.
-        Memcached operations are atomic by default.
-
-        Args:
-            key (_CacheKey): The internal key to look up.
-
-        Returns:
-            Optional[_CacheValue]: The stored tuple (value, expiry) or None.
-        """
-        return self.get(key)
 
     def set(self, key: _CacheKey, value: _CacheValue) -> None:
         """
@@ -136,7 +122,6 @@ class MemcachedStorage(IStorageProvider):
     def clear(self) -> None:
         """Atomically clears the entire Memcached storage."""
         try:
-            with self._instance_lock:
-                self._client.flush_all()
+            self._client.flush_all()
         except Exception as e:
             logging.error(f"Error clearing storage: {e}")

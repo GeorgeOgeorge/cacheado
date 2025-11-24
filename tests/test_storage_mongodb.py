@@ -235,30 +235,6 @@ class TestMongoDBStorage:
 
         storage.clear()
         mock_collection.delete_many.assert_called_once_with({})
-
-    @patch("storages.mongodb_storage.MongoClient")
-    def test_get_value_no_lock(self, mock_client_class):
-        """Test get_value_no_lock delegates to get."""
-        mock_client = Mock()
-        mock_db = Mock()
-        mock_collection = Mock()
-        mock_client.admin.command.return_value = None
-        mock_client.__getitem__ = Mock(return_value=mock_db)
-        mock_db.__getitem__ = Mock(return_value=mock_collection)
-        mock_client_class.return_value = mock_client
-
-        storage = MongoDBStorage("mongodb://localhost:27017")
-        key: _CacheKey = ("scope", "namespace", ("arg1",))
-
-        import pickle
-
-        value: _CacheValue = ("data", 123.0)
-        serialized_value = pickle.dumps(value)
-        mock_collection.find_one.return_value = {"value": serialized_value}
-
-        result = storage.get_value_no_lock(key)
-        assert result == value
-
     @patch("storages.mongodb_storage.MongoClient")
     def test_set_with_error(self, mock_client_class):
         """Test set raises exception on database error."""

@@ -130,24 +130,6 @@ class TestRedisStorage:
             storage.clear()
             mock_client.flushdb.assert_called_once()
 
-    def test_get_value_no_lock(self):
-        """Test get_value_no_lock delegates to get."""
-        with patch("redis.from_url") as mock_redis:
-            mock_client = Mock()
-            mock_redis.return_value = mock_client
-
-            storage = RedisStorage("redis://localhost:6379/0")
-            key: _CacheKey = ("scope", "namespace", ("arg1",))
-
-            import pickle
-
-            value: _CacheValue = ("data", 123.0)
-            serialized_value = pickle.dumps(value)
-            mock_client.get.return_value = serialized_value
-
-            result = storage.get_value_no_lock(key)
-            assert result == value
-
     def test_deserialize_invalid_key_format(self):
         """Test deserialization fails with invalid key format."""
         with patch("redis.from_url") as mock_redis:

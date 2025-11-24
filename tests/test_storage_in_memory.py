@@ -75,17 +75,6 @@ class TestInMemoryStorage:
         storage.clear()
         assert len(storage.get_all_keys()) == 0
 
-    def test_get_value_no_lock(self):
-        """Test non-locking get operation."""
-        storage = InMemory()
-        key: _CacheKey = ("global", "test", ("arg1",))
-        value: _CacheValue = ("test_value", time.monotonic() + 60)
-
-        storage.set(key, value)
-        result = storage.get_value_no_lock(key)
-
-        assert result == value
-
     def test_thread_safety(self):
         """Test thread safety of storage operations."""
         storage = InMemory()

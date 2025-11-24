@@ -21,19 +21,6 @@ class IStorageProvider(Protocol):
         """
         ...
 
-    def get_value_no_lock(self, key: _CacheKey) -> Optional[_CacheValue]:
-        """
-        Performs a non-locking ("dirty") read for the cleanup loop.
-        Only required for backends that support it.
-
-        Args:
-            key (_CacheKey): The internal key to look up.
-
-        Returns:
-            Optional[_CacheValue]: The stored tuple (value, expiry) or None.
-        """
-        ...
-
     def set(self, key: _CacheKey, value: _CacheValue) -> None:
         """
         Atomically sets a value tuple (value, expiry) in storage.

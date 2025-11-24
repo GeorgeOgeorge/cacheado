@@ -22,10 +22,6 @@ class TestErrorHandling:
         keys = cache._get_all_keys_from_storage()
         assert keys == []
 
-        # Test _get_value_no_lock_from_storage without storage
-        result = cache._get_value_no_lock_from_storage(("test", "key", ("arg",)))
-        assert result is None
-
     def test_cache_policy_manager_error_handling(self):
         """Test CachePolicyManager error handling."""
         cache_mock = Mock()

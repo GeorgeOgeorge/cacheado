@@ -14,7 +14,6 @@ class TestProtocols:
         """Test IStorageProvider protocol methods exist."""
         # Test that protocol has required methods
         assert hasattr(IStorageProvider, "get")
-        assert hasattr(IStorageProvider, "get_value_no_lock")
         assert hasattr(IStorageProvider, "set")
         assert hasattr(IStorageProvider, "evict")
         assert hasattr(IStorageProvider, "get_all_keys")
@@ -70,7 +69,7 @@ class TestProtocols:
         assert len(storage_annotations) == 0  # Protocols don't have class-level annotations
 
         # Test that methods exist and are callable
-        methods_to_check = ["get", "get_value_no_lock", "set", "evict", "get_all_keys", "clear"]
+        methods_to_check = ["get", "set", "evict", "get_all_keys", "clear"]
 
         for method_name in methods_to_check:
             method = getattr(IStorageProvider, method_name)

@@ -1,6 +1,5 @@
 import logging
 import pickle
-import threading
 from typing import List, Optional
 
 try:
@@ -16,13 +15,14 @@ from protocols.storage_provider import IStorageProvider
 
 class RedisStorage(IStorageProvider):
     """
-    Thread-safe Redis implementation of the IStorageProvider.
+    High-performance Redis implementation of the IStorageProvider.
 
     Uses Redis as the backend storage with connection string configuration.
     Serializes cache keys and values using pickle for Redis compatibility.
+    Redis operations are atomic by default, so zero-lock philosophy applies.
     """
 
-    __slots__ = ("_redis", "_instance_lock")
+    __slots__ = ("_redis",)
 
     def __init__(self, connection_string: str):
         """Initializes the Redis storage provider.
@@ -35,7 +35,6 @@ class RedisStorage(IStorageProvider):
 
         try:
             self._redis = redis.from_url(connection_string)
-            self._instance_lock = threading.Lock()
             self._redis.ping()
             logging.info(f"RedisStorage initialized with connection: {connection_string}")
         except Exception as e:
@@ -87,19 +86,6 @@ class RedisStorage(IStorageProvider):
             logging.error(f"Error getting key {key}: {e}")
             return None
 
-    def get_value_no_lock(self, key: _CacheKey) -> Optional[_CacheValue]:
-        """
-        Performs a non-locking read for the cleanup loop.
-        Redis operations are atomic by default.
-
-        Args:
-            key (_CacheKey): The internal key to look up.
-
-        Returns:
-            Optional[_CacheValue]: The stored tuple (value, expiry) or None.
-        """
-        return self.get(key)
-
     def set(self, key: _CacheKey, value: _CacheValue) -> None:
         """
         Atomically sets a value tuple (value, expiry) in Redis.
@@ -131,15 +117,16 @@ class RedisStorage(IStorageProvider):
 
     def get_all_keys(self) -> List[_CacheKey]:
         """
-        Atomically gets a copy of all keys in Redis.
+        Gets a copy of all keys in Redis.
+
+        Retrieves all keys in a single atomic operation from Redis.
 
         Returns:
             List[_CacheKey]: A list of all cache keys.
         """
         try:
-            with self._instance_lock:
-                serialized_keys = self._redis.keys("*")
-                return [self._deserialize_key(key.decode()) for key in serialized_keys]
+            serialized_keys = self._redis.keys("*")
+            return [self._deserialize_key(key.decode()) for key in serialized_keys]
         except Exception as e:
             logging.error(f"Error getting all keys: {e}")
             return []
@@ -147,7 +134,6 @@ class RedisStorage(IStorageProvider):
     def clear(self) -> None:
         """Atomically clears the entire Redis storage."""
         try:
-            with self._instance_lock:
-                self._redis.flushdb()
+            self._redis.flushdb()
         except Exception as e:
             logging.error(f"Error clearing storage: {e}")

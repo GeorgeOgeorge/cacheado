@@ -1,6 +1,5 @@
 import logging
 import pickle
-import threading
 from typing import List, Optional
 
 try:
@@ -18,13 +17,14 @@ from protocols.storage_provider import IStorageProvider
 
 class MongoDBStorage(IStorageProvider):
     """
-    Thread-safe MongoDB implementation of the IStorageProvider.
+    High-performance MongoDB implementation of the IStorageProvider.
 
     Uses MongoDB as the backend storage with connection string configuration.
     Serializes cache keys and values using pickle for MongoDB compatibility.
+    MongoDB operations are atomic by default, so zero-lock philosophy applies.
     """
 
-    __slots__ = ("_client", "_db", "_collection", "_instance_lock")
+    __slots__ = ("_client", "_db", "_collection")
 
     def __init__(self, connection_string: str, database: str = "cache", collection: str = "items"):
         """Initializes the MongoDB storage provider.
@@ -41,7 +41,6 @@ class MongoDBStorage(IStorageProvider):
             self._client: MongoClient = MongoClient(connection_string)
             self._db: Database = self._client[database]
             self._collection: Collection = self._db[collection]
-            self._instance_lock: threading.Lock = threading.Lock()
 
             self._client.admin.command("ping")
             logging.info(f"MongoDBStorage initialized with connection: {connection_string}")
@@ -85,19 +84,6 @@ class MongoDBStorage(IStorageProvider):
             logging.error(f"Error getting key {key}: {e}")
             return None
 
-    def get_value_no_lock(self, key: _CacheKey) -> Optional[_CacheValue]:
-        """
-        Performs a non-locking read for the cleanup loop.
-        MongoDB operations are atomic by default.
-
-        Args:
-            key (_CacheKey): The internal key to look up.
-
-        Returns:
-            Optional[_CacheValue]: The stored tuple (value, expiry) or None.
-        """
-        return self.get(key)
-
     def set(self, key: _CacheKey, value: _CacheValue) -> None:
         """
         Atomically sets a value tuple (value, expiry) in MongoDB.
@@ -132,15 +118,16 @@ class MongoDBStorage(IStorageProvider):
 
     def get_all_keys(self) -> List[_CacheKey]:
         """
-        Atomically gets a copy of all keys in MongoDB.
+        Gets a copy of all keys in MongoDB.
+
+        Retrieves all documents in a single atomic operation from MongoDB.
 
         Returns:
             List[_CacheKey]: A list of all cache keys.
         """
         try:
-            with self._instance_lock:
-                docs = self._collection.find({}, {"_id": 1})
-                return [self._deserialize_key(doc["_id"]) for doc in docs]
+            docs = self._collection.find({}, {"_id": 1})
+            return [self._deserialize_key(doc["_id"]) for doc in docs]
         except Exception as e:
             logging.error(f"Error getting all keys: {e}")
             return []
@@ -148,7 +135,6 @@ class MongoDBStorage(IStorageProvider):
     def clear(self) -> None:
         """Atomically clears the entire MongoDB collection."""
         try:
-            with self._instance_lock:
-                self._collection.delete_many({})
+            self._collection.delete_many({})
         except Exception as e:
             logging.error(f"Error clearing storage: {e}")
