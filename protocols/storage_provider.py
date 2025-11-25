@@ -1,4 +1,4 @@
-from typing import List, Optional, Protocol
+from typing import Any, List, Optional, Protocol, Union
 
 from cache_types import _CacheKey, _CacheValue
 
@@ -6,11 +6,41 @@ from cache_types import _CacheKey, _CacheValue
 class IStorageProvider(Protocol):
     """
     Interface (Protocol) for all storage backends (e.g., In-Memory, Redis).
-    
-    Implementations MUST support both sync and async operations.
-    For async-first applications, prefer async variants.
-    Async methods are non-blocking and allow concurrent operations.
+
+    Storage providers are FULLY RESPONSIBLE for:
+    - Data persistence (get/set/evict/clear)
+    - TTL calculation and management (storage-specific)
+    - Eviction policies (LRU, LFU, etc.)
+    - Cleanup mechanisms (background threads, native TTL)
+    - Statistics tracking
+
+    The Cache class only manages:
+    - Public API
+    - Namespace/scope management
+    - Decorator logic
+
+    This follows the principle: "Storage owns its data lifecycle"
     """
+
+    def set(self, key: _CacheKey, value: Any, ttl_seconds: Union[int, float]) -> None:
+        """
+        Sets a value with TTL.
+
+        Args:
+            key: The cache key
+            value: The value to store
+            ttl_seconds: Time-to-live in seconds
+        """
+        ...
+
+    def get_stats(self) -> dict:
+        """
+        Returns storage-specific statistics.
+
+        Returns:
+            dict: Statistics like current_size, namespace_count, etc.
+        """
+        ...
 
     def get(self, key: _CacheKey) -> Optional[_CacheValue]:
         """
@@ -21,16 +51,6 @@ class IStorageProvider(Protocol):
 
         Returns:
             Optional[_CacheValue]: The stored tuple, or None.
-        """
-        ...
-
-    def set(self, key: _CacheKey, value: _CacheValue) -> None:
-        """
-        Atomically sets a value tuple (value, expiry) in storage.
-
-        Args:
-            key (_CacheKey): The internal key to set.
-            value (_CacheValue): The (value, expiry) tuple to store.
         """
         ...
 
@@ -69,14 +89,14 @@ class IStorageProvider(Protocol):
         """
         ...
 
-    async def aset(self, key: _CacheKey, value: _CacheValue) -> None:
+    async def aset(self, key: _CacheKey, value: Any, ttl_seconds: Union[int, float]) -> None:
         """
-        Asynchronously sets a value tuple (value, expiry) in storage.
-        Non-blocking, allows concurrent operations.
+        Asynchronously sets a value with TTL.
 
         Args:
-            key (_CacheKey): The internal key to set.
-            value (_CacheValue): The (value, expiry) tuple to store.
+            key: The cache key
+            value: The value to store
+            ttl_seconds: Time-to-live in seconds
         """
         ...
 

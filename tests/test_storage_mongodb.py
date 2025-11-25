@@ -235,6 +235,7 @@ class TestMongoDBStorage:
 
         storage.clear()
         mock_collection.delete_many.assert_called_once_with({})
+
     @patch("storages.mongodb_storage.MongoClient")
     def test_set_with_error(self, mock_client_class):
         """Test set raises exception on database error."""

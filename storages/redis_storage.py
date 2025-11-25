@@ -1,13 +1,11 @@
 import logging
 import pickle
-from typing import List, Optional
+from typing import Any, List, Optional, Union
 
 try:
     import redis
 except ImportError:
-    raise ImportError(
-        "The 'redis' package is required for RedisStorage. Install it via 'pip install cacehado[redis]'."
-    )
+    raise ImportError("The 'redis' package is required for RedisStorage. Install it via 'pip install cacehado[redis]'.")
 
 from cache_types import _CacheKey, _CacheValue
 from protocols.storage_provider import IStorageProvider
@@ -20,6 +18,9 @@ class RedisStorage(IStorageProvider):
     Uses Redis as the backend storage with connection string configuration.
     Serializes cache keys and values using pickle for Redis compatibility.
     Redis operations are atomic by default, so zero-lock philosophy applies.
+
+    Redis natively supports TTL via EXPIRE command, so it does NOT require
+    external policy management. Eviction is handled by Redis internally.
     """
 
     __slots__ = ("_redis",)
@@ -86,18 +87,23 @@ class RedisStorage(IStorageProvider):
             logging.error(f"Error getting key {key}: {e}")
             return None
 
-    def set(self, key: _CacheKey, value: _CacheValue) -> None:
+    def set(self, key: _CacheKey, value: Any, ttl_seconds: Union[int, float]) -> None:
         """
-        Atomically sets a value tuple (value, expiry) in Redis.
+        Sets a value with Redis native TTL (SETEX).
 
         Args:
-            key (_CacheKey): The internal key to set.
-            value (_CacheValue): The (value, expiry) tuple to store.
+            key: The cache key
+            value: The value to store
+            ttl_seconds: Time-to-live in seconds
         """
         try:
             serialized_key = self._serialize_key(key)
-            serialized_value = self._serialize_value(value)
-            self._redis.set(serialized_key, serialized_value)
+            # Store value with placeholder expiry (Redis manages TTL)
+            serialized_value = self._serialize_value((value, 0.0))
+
+            # Redis manages TTL natively via SETEX
+            ttl_int = max(1, int(ttl_seconds))
+            self._redis.setex(serialized_key, ttl_int, serialized_value)
         except Exception as e:
             logging.error(f"Error setting key {key}: {e}")
             raise
@@ -153,16 +159,16 @@ class RedisStorage(IStorageProvider):
         """
         return self.get(key)
 
-    async def aset(self, key: _CacheKey, value: _CacheValue) -> None:
+    async def aset(self, key: _CacheKey, value: Any, ttl_seconds: Union[int, float]) -> None:
         """
-        Asynchronously sets a value tuple (value, expiry) in Redis.
-        Non-blocking operation.
+        Asynchronously sets a value with TTL.
 
         Args:
-            key (_CacheKey): The internal key to set.
-            value (_CacheValue): The (value, expiry) tuple to store.
+            key: The cache key
+            value: The value to store
+            ttl_seconds: Time-to-live in seconds
         """
-        self.set(key, value)
+        self.set(key, value, ttl_seconds)
 
     async def aevict(self, key: _CacheKey) -> None:
         """
@@ -191,3 +197,16 @@ class RedisStorage(IStorageProvider):
         """
         self.clear()
 
+    def get_stats(self) -> dict:
+        """Returns Redis storage statistics."""
+        try:
+            info = self._redis.info("stats")
+            return {
+                "storage_type": "redis",
+                "total_keys": self._redis.dbsize(),
+                "keyspace_hits": info.get("keyspace_hits", 0),
+                "keyspace_misses": info.get("keyspace_misses", 0),
+            }
+        except Exception as e:
+            logging.error(f"Error getting Redis stats: {e}")
+            return {"storage_type": "redis", "error": str(e)}

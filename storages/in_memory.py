@@ -1,134 +1,141 @@
 import logging
-from typing import Dict, List, Optional
+import time
+from typing import Any, Dict, List, Optional, Union
 
 from cache_types import _CacheKey, _CacheValue
+from eviction_policies.lre_eviction import LRUEvictionPolicy
 from protocols.storage_provider import IStorageProvider
 
 
 class InMemory(IStorageProvider):
-    """
-    High-performance in-memory implementation of the IStorageProvider.
-
-    Uses zero-lock philosophy for all operations on atomic dict operations (get/set/evict/clear).
-    Relies on Python's GIL and atomic dict operations for thread safety.
-    Optimized with __slots__ for memory efficiency.
+    """In-memory storage with lazy TTL checking and LRU eviction.
+    
+    Uses lazy eviction: expired items are removed only when accessed.
+    LRU policy manages memory limits without background threads.
     """
 
-    __slots__ = ("_cache",)
+    __slots__ = ("_cache", "_lru_policy", "_max_size")
 
-    def __init__(self) -> None:
-        """Initializes the in-memory storage."""
+    def __init__(self, max_size: Optional[int] = None) -> None:
+        """Initializes in-memory storage with LRU policy.
+
+        Args:
+            max_size (Optional[int]): Maximum number of items (default: None)
+        """
         self._cache: Dict[_CacheKey, _CacheValue] = {}
-        logging.info("InMemoryStorageProvider initialized.")
-
-    def get(self, key: _CacheKey) -> Optional[_CacheValue]:
-        """
-        Gets a value tuple (value, expiry) from memory without locking.
-
-        The dict.get() operation is atomic in Python, so no lock is needed.
-        Per the "let it crash" philosophy, we trust the atomicity of dict operations.
-
-        Args:
-            key (_CacheKey): The internal key to get.
-
-        Returns:
-            Optional[_CacheValue]: The stored tuple, or None.
-        """
-        return self._cache.get(key, None)
-
-    def set(self, key: _CacheKey, value: _CacheValue) -> None:
-        """
-        Sets a value tuple (value, expiry) in memory without locking.
-
-        The dict[key] = value operation is atomic in Python.
-        Per the "let it crash" philosophy, the last writer wins (acceptable for cache).
-
-        Args:
-            key (_CacheKey): The internal key to set.
-            value (_CacheValue): The (value, expiry) tuple to store.
-        """
-        self._cache[key] = value
-
-    def evict(self, key: _CacheKey) -> None:
-        """
-        Evicts a key from memory without locking.
-
-        Uses .pop(key, None) which is atomic in Python.
-        Per the "let it crash" philosophy, we trust dict atomicity.
-
-        Args:
-            key (_CacheKey): The internal key to evict.
-        """
-        self._cache.pop(key, None)
+        self._lru_policy = LRUEvictionPolicy()
+        self._max_size = max_size
+        logging.info(f"InMemory initialized: max_size={max_size}")
 
     def get_all_keys(self) -> List[_CacheKey]:
-        """
-        Gets a copy of all keys in memory.
-
-        Returns a snapshot of keys at the time of call.
-        Per the "let it crash" philosophy, we trust list() snapshot operation.
+        """Returns all cache keys.
 
         Returns:
-            List[_CacheKey]: A list of all cache keys.
+            List[_CacheKey]: List of all keys
         """
         return list(self._cache.keys())
 
-    def clear(self) -> None:
-        """
-        Clears the entire in-memory storage.
-
-        Uses dict.clear() which is atomic in Python.
-        Per the "let it crash" philosophy, we trust dict atomicity.
-        """
-        self._cache.clear()
-
-    async def aget(self, key: _CacheKey) -> Optional[_CacheValue]:
-        """
-        Asynchronously gets a value tuple (value, expiry) from memory.
-        Non-blocking operation.
-
-        Args:
-            key (_CacheKey): The internal key to get.
+    def get_stats(self) -> dict:
+        """Returns storage statistics.
 
         Returns:
-            Optional[_CacheValue]: The stored tuple, or None.
+            dict: Statistics including storage type, keys, and LRU stats
         """
-        return self._cache.get(key, None)
+        return {
+            "storage_type": "in_memory",
+            "total_keys": len(self._cache),
+            "max_size": self._max_size,
+            "lru_global_size": self._lru_policy.get_global_size(),
+            "lru_namespaces": self._lru_policy.get_namespace_count(),
+        }
 
-    async def aset(self, key: _CacheKey, value: _CacheValue) -> None:
-        """
-        Asynchronously sets a value tuple (value, expiry) in memory.
-        Non-blocking operation.
-
-        Args:
-            key (_CacheKey): The internal key to set.
-            value (_CacheValue): The (value, expiry) tuple to store.
-        """
-        self._cache[key] = value
-
-    async def aevict(self, key: _CacheKey) -> None:
-        """
-        Asynchronously evicts a key from memory.
-        Non-blocking operation.
+    def get(self, key: _CacheKey) -> Optional[_CacheValue]:
+        """Gets value with lazy TTL check and LRU tracking.
 
         Args:
-            key (_CacheKey): The internal key to evict.
+            key (_CacheKey): Cache key
+
+        Returns:
+            Optional[_CacheValue]: Value tuple or None if not found/expired
+        """
+        value_tuple = self._cache.get(key)
+        if value_tuple is None:
+            return None
+
+        _, expiry = value_tuple
+        if time.monotonic() > expiry:
+            self.evict(key)
+            return None
+
+        self._lru_policy.notify_get(key, key[1])
+        return value_tuple
+
+    def set(self, key: _CacheKey, value: Any, ttl_seconds: Union[int, float]) -> None:
+        """Sets value with TTL and LRU eviction check.
+
+        Args:
+            key (_CacheKey): Cache key
+            value (Any): Value to store
+            ttl_seconds (Union[int, float]): Time-to-live in seconds
+        """
+        expiry = time.monotonic() + ttl_seconds
+        self._cache[key] = (value, expiry)
+
+        key_to_evict = self._lru_policy.notify_set(key, key[1], None, self._max_size)
+        if key_to_evict:
+            self.evict(key_to_evict)
+
+    def evict(self, key: _CacheKey) -> None:
+        """Evicts key and notifies LRU policy.
+
+        Args:
+            key (_CacheKey): Cache key to evict
         """
         self._cache.pop(key, None)
+        self._lru_policy.notify_evict(key, key[1])
 
-    async def aget_all_keys(self) -> List[_CacheKey]:
-        """
-        Asynchronously gets a copy of all keys in memory.
-        Non-blocking operation.
+    def clear(self) -> None:
+        """Clears all data and LRU policy."""
+        self._cache.clear()
+        self._lru_policy.notify_clear()
+
+    async def aget(self, key: _CacheKey) -> Optional[_CacheValue]:
+        """Async get.
+
+        Args:
+            key (_CacheKey): Cache key
 
         Returns:
-            List[_CacheKey]: A list of all cache keys.
+            Optional[_CacheValue]: Value tuple or None
         """
-        return list(self._cache.keys())
+        return self.get(key)
+
+    async def aset(self, key: _CacheKey, value: Any, ttl_seconds: Union[int, float]) -> None:
+        """Async set.
+
+        Args:
+            key (_CacheKey): Cache key
+            value (Any): Value to store
+            ttl_seconds (Union[int, float]): Time-to-live in seconds
+        """
+        self.set(key, value, ttl_seconds)
+
+    async def aevict(self, key: _CacheKey) -> None:
+        """Async evict.
+
+        Args:
+            key (_CacheKey): Cache key to evict
+        """
+        self.evict(key)
+
+    async def aget_all_keys(self) -> List[_CacheKey]:
+        """Async get all keys.
+
+        Returns:
+            List[_CacheKey]: List of all keys
+        """
+        return self.get_all_keys()
 
     async def aclear(self) -> None:
-        """
-        Asynchronously clears the entire in-memory storage.
-        Non-blocking operation.
-        """
-        self._cache.clear()
+        """Async clear."""
+        self.clear()

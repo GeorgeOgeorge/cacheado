@@ -1,15 +1,13 @@
 import logging
 import pickle
-from typing import List, Optional
+from typing import Any, List, Optional, Union
 
 try:
     from pymongo import MongoClient
     from pymongo.collection import Collection
     from pymongo.database import Database
 except ImportError:
-    raise ImportError(
-        "The 'pymongo' package is required for MongoDBStorage. Install it via 'pip install cacehado[mongodb]'."
-    )
+    raise ImportError("The 'pymongo' package is required for MongoDBStorage. Install it via 'pip install cacehado[mongodb]'.")
 
 from cache_types import _CacheKey, _CacheValue
 from protocols.storage_provider import IStorageProvider
@@ -22,6 +20,9 @@ class MongoDBStorage(IStorageProvider):
     Uses MongoDB as the backend storage with connection string configuration.
     Serializes cache keys and values using pickle for MongoDB compatibility.
     MongoDB operations are atomic by default, so zero-lock philosophy applies.
+
+    MongoDB natively supports TTL via TTL indexes (expireAfterSeconds),
+    so it does NOT require external policy management.
     """
 
     __slots__ = ("_client", "_db", "_collection")
@@ -41,6 +42,9 @@ class MongoDBStorage(IStorageProvider):
             self._client: MongoClient = MongoClient(connection_string)
             self._db: Database = self._client[database]
             self._collection: Collection = self._db[collection]
+
+            # Create TTL index for automatic expiration
+            self._collection.create_index("expireAt", expireAfterSeconds=0)
 
             self._client.admin.command("ping")
             logging.info(f"MongoDBStorage initialized with connection: {connection_string}")
@@ -84,20 +88,27 @@ class MongoDBStorage(IStorageProvider):
             logging.error(f"Error getting key {key}: {e}")
             return None
 
-    def set(self, key: _CacheKey, value: _CacheValue) -> None:
+    def set(self, key: _CacheKey, value: Any, ttl_seconds: Union[int, float]) -> None:
         """
-        Atomically sets a value tuple (value, expiry) in MongoDB.
+        Sets a value with MongoDB TTL index.
 
         Args:
-            key (_CacheKey): The internal key to set.
-            value (_CacheValue): The (value, expiry) tuple to store.
+            key: The cache key
+            value: The value to store
+            ttl_seconds: Time-to-live in seconds
         """
         try:
+            import datetime
+
             serialized_key = self._serialize_key(key)
-            serialized_value = pickle.dumps(value)
+            # Store value with placeholder expiry (MongoDB manages TTL)
+            serialized_value = pickle.dumps((value, 0.0))
+
+            # MongoDB manages TTL via TTL index
+            expire_at = datetime.datetime.utcnow() + datetime.timedelta(seconds=ttl_seconds)
 
             self._collection.replace_one(
-                {"_id": serialized_key}, {"_id": serialized_key, "value": serialized_value}, upsert=True
+                {"_id": serialized_key}, {"_id": serialized_key, "value": serialized_value, "expireAt": expire_at}, upsert=True
             )
         except Exception as e:
             logging.error(f"Error setting key {key}: {e}")
@@ -154,16 +165,16 @@ class MongoDBStorage(IStorageProvider):
         """
         return self.get(key)
 
-    async def aset(self, key: _CacheKey, value: _CacheValue) -> None:
+    async def aset(self, key: _CacheKey, value: Any, ttl_seconds: Union[int, float]) -> None:
         """
-        Asynchronously sets a value tuple (value, expiry) in MongoDB.
-        Non-blocking operation.
+        Asynchronously sets a value with TTL.
 
         Args:
-            key (_CacheKey): The internal key to set.
-            value (_CacheValue): The (value, expiry) tuple to store.
+            key: The cache key
+            value: The value to store
+            ttl_seconds: Time-to-live in seconds
         """
-        self.set(key, value)
+        self.set(key, value, ttl_seconds)
 
     async def aevict(self, key: _CacheKey) -> None:
         """
@@ -192,3 +203,15 @@ class MongoDBStorage(IStorageProvider):
         """
         self.clear()
 
+    def get_stats(self) -> dict:
+        """Returns MongoDB storage statistics."""
+        try:
+            stats = self._db.command("collStats", self._collection.name)
+            return {
+                "storage_type": "mongodb",
+                "total_keys": stats.get("count", 0),
+                "size_bytes": stats.get("size", 0),
+            }
+        except Exception as e:
+            logging.error(f"Error getting MongoDB stats: {e}")
+            return {"storage_type": "mongodb", "error": str(e)}

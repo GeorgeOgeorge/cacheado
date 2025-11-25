@@ -76,7 +76,18 @@ class TestProtocols:
         assert len(storage_annotations) == 0  # Protocols don't have class-level annotations
 
         # Test that methods exist and are callable
-        methods_to_check = ["get", "set", "evict", "get_all_keys", "clear", "aget", "aset", "aevict", "aget_all_keys", "aclear"]
+        methods_to_check = [
+            "get",
+            "set",
+            "evict",
+            "get_all_keys",
+            "clear",
+            "aget",
+            "aset",
+            "aevict",
+            "aget_all_keys",
+            "aclear",
+        ]
 
         for method_name in methods_to_check:
             method = getattr(IStorageProvider, method_name)
