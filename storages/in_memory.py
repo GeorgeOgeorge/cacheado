@@ -9,7 +9,7 @@ from protocols.storage_provider import IStorageProvider
 
 class InMemory(IStorageProvider):
     """In-memory storage with lazy TTL checking and LRU eviction.
-    
+
     Uses lazy eviction: expired items are removed only when accessed.
     LRU policy manages memory limits without background threads.
     """

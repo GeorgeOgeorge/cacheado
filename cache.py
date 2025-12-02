@@ -6,7 +6,7 @@ from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 from typing_extensions import ParamSpec, TypeVar
 
-from cache_scopes.scope_config import ScopeConfig
+from cache_scope_config import ScopeConfig
 from cache_types import _CacheKey, _CacheScope
 from protocols.storage_provider import IStorageProvider
 from storages.in_memory import InMemory

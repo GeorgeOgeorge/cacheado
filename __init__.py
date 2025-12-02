@@ -8,7 +8,7 @@ Storages are fully responsible for their own eviction policies and TTL managemen
 """
 
 from .cache import Cache, create_cache
-from .cache_scopes.scope_config import ScopeConfig, ScopeLevel
+from .cache_scope_config import ScopeConfig, ScopeLevel
 from .cache_types import _CacheKey, _CacheScope, _CacheValue
 from .storages.in_memory import InMemory
 from .storages.memcached_storage import MemcachedStorage
