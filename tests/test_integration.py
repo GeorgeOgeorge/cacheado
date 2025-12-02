@@ -4,10 +4,10 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
+from cache_policies.cache_policy_manager import CachePolicyManager
 
 from cache import create_cache
-from cache_policies.cache_policy_manager import CachePolicyManager
-from cache_scopes.scope_config import ScopeConfig, ScopeLevel
+from cache_scope_config import ScopeConfig, ScopeLevel
 from eviction_policies.lre_eviction import LRUEvictionPolicy
 from storages.in_memory import InMemory
 

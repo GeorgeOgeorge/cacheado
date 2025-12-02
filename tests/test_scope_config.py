@@ -1,6 +1,6 @@
 import pytest
 
-from cache_scopes.scope_config import ScopeConfig, ScopeLevel
+from cache_scope_config import ScopeConfig, ScopeLevel
 
 
 class TestScopeLevel:
