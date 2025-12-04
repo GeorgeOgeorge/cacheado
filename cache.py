@@ -28,28 +28,19 @@ class Cache:
 
     __slots__ = ("_storage", "_scope_config", "_hits", "_misses", "_evictions")
 
-    def __init__(self) -> None:
-        """Initializes cache with empty state."""
-        self._storage: Optional[IStorageProvider] = None
-        self._scope_config: Optional[ScopeConfig] = None
-        self._hits: int = 0
-        self._misses: int = 0
-        self._evictions: int = 0
-
-    def configure(self, backend: IStorageProvider, scope_config: ScopeConfig) -> None:
-        """Configures cache with storage backend and scope configuration.
+    def __init__(self, backend: IStorageProvider, scope_config: ScopeConfig) -> None:
+        """Initializes cache with storage backend and scope configuration.
 
         Args:
             backend (IStorageProvider): Storage backend
             scope_config (ScopeConfig): Scope hierarchy configuration
         """
-        if self._storage is not None:
-            logging.warning("Cache already configured")
-            return
-
         self._storage = backend
         self._scope_config = scope_config
-        logging.info(f"Cache configured with {backend.__class__.__name__}")
+        self._hits: int = 0
+        self._misses: int = 0
+        self._evictions: int = 0
+        logging.info(f"Cache initialized with {backend.__class__.__name__}")
 
     def _internal_get(self, key: _CacheKey) -> Optional[Any]:
         """Gets value from storage and updates statistics.
@@ -60,10 +51,6 @@ class Cache:
         Returns:
             Optional[Any]: Cached value or None if not found
         """
-        if not self._storage:
-            logging.error("Cache not configured")
-            return None
-
         value_tuple = self._storage.get(key)
         if value_tuple is None:
             self._misses += 1
@@ -80,10 +67,6 @@ class Cache:
             value (Any): Value to cache
             ttl_seconds (Union[int, float]): Time-to-live in seconds
         """
-        if not self._storage:
-            logging.error("Cache not configured")
-            return
-
         if ttl_seconds <= 0:
             return
 
@@ -95,10 +78,6 @@ class Cache:
         Args:
             key (_CacheKey): Cache key to evict
         """
-        if not self._storage:
-            logging.error("Cache not configured")
-            return
-
         self._storage.evict(key)
         self._evictions += 1
 
@@ -133,12 +112,8 @@ class Cache:
             str: Scope prefix path
 
         Raises:
-            RuntimeError: If cache not configured
             ValueError: If invalid scope type
         """
-        if not self._scope_config:
-            raise RuntimeError("Cache not configured")
-
         if scope == "global":
             return "global"
 
@@ -329,9 +304,7 @@ class Cache:
         Raises:
             Exception: If storage operation fails
         """
-        if self._storage:
-            self._storage.clear()
-
+        self._storage.clear()
         self._hits = 0
         self._misses = 0
         self._evictions = 0
@@ -402,10 +375,7 @@ class Cache:
             "misses": self._misses,
             "evictions": self._evictions,
         }
-
-        if self._storage:
-            stats.update(self._storage.get_stats())
-
+        stats.update(self._storage.get_stats())
         return stats
 
     def evict_by_scope(self, scope: _CacheScope, scope_params: Optional[Dict[str, Any]] = None, **kwargs: Any) -> int:
@@ -419,10 +389,6 @@ class Cache:
         Returns:
             int: Number of items evicted
         """
-        if not self._storage or not self._scope_config:
-            logging.error("Cache not configured")
-            return 0
-
         params = {**(scope_params or {}), **kwargs}
         try:
             prefix = self._build_scope_prefix(scope, params)
@@ -455,9 +421,7 @@ def create_cache(
     Returns:
         Cache: Configured cache instance
     """
-    cache = Cache()
-    cache.configure(
+    return Cache(
         backend=backend or InMemory(),
         scope_config=scope_config or ScopeConfig(),
     )
-    return cache
