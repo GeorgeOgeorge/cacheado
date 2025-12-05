@@ -1,6 +1,5 @@
 """Tests for protocol interfaces to ensure they are properly defined."""
 
-from protocols.cache import ICache
 from protocols.eviction_policy import IEvictionPolicy
 from protocols.storage_provider import IStorageProvider
 
@@ -31,16 +30,6 @@ class TestProtocols:
         assert hasattr(IEvictionPolicy, "get_namespace_count")
         assert hasattr(IEvictionPolicy, "get_global_size")
 
-    def test_cache_protocol(self):
-        """Test ICache protocol methods exist."""
-        assert hasattr(ICache, "get")
-        assert hasattr(ICache, "set")
-        assert hasattr(ICache, "evict")
-        assert hasattr(ICache, "clear")
-        assert hasattr(ICache, "cache")
-        assert hasattr(ICache, "stats")
-        assert hasattr(ICache, "evict_by_scope")
-
     def test_protocol_method_signatures(self):
         """Test that protocol methods have proper signatures."""
 
@@ -66,7 +55,7 @@ class TestProtocols:
 
     def test_protocol_inheritance(self):
         """Test protocol inheritance structure."""
-        protocols = [IStorageProvider, IEvictionPolicy, ICache]
+        protocols = [IStorageProvider, IEvictionPolicy]
 
         for protocol in protocols:
             assert hasattr(protocol, "__mro__")
@@ -74,7 +63,7 @@ class TestProtocols:
 
     def test_protocol_documentation(self):
         """Test that protocols have proper documentation."""
-        protocols = [IStorageProvider, IEvictionPolicy, ICache]
+        protocols = [IStorageProvider, IEvictionPolicy]
 
         for protocol in protocols:
             assert protocol.__doc__ is not None
