@@ -44,20 +44,23 @@ class TestMemcachedStorage:
             storage = MemcachedStorage("localhost:11211")
 
             key: _CacheKey = ("scope", "namespace", ("arg1", "arg2"))
-            value: _CacheValue = ("cached_data", 1234567890.0)
+            value = "cached_data"
 
             # Test set
-            storage.set(key, value)
+            storage.set(key, value, 60)
             mock_client.set.assert_called_once()
 
             # Test get
             import pickle
+            import time
 
-            serialized_value = pickle.dumps(value)
+            value_tuple: _CacheValue = (value, time.monotonic() + 60)
+            serialized_value = pickle.dumps(value_tuple)
             mock_client.get.return_value = serialized_value
 
             result = storage.get(key)
-            assert result == value
+            assert result is not None
+            assert result[0] == value
 
     def test_get_nonexistent_key(self):
         """Test getting a non-existent key returns None."""

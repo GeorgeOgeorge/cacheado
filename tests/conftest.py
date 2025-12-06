@@ -1,9 +1,7 @@
 import pytest
-from cache_policies.cache_policy_manager import CachePolicyManager
 
 from cache import create_cache
 from cache_scope_config import ScopeConfig, ScopeLevel
-from eviction_policies.lre_eviction import LRUEvictionPolicy
 from storages.in_memory import InMemory
 
 
@@ -25,18 +23,6 @@ def storage():
 
 
 @pytest.fixture
-def eviction_policy():
-    """LRU eviction policy."""
-    return LRUEvictionPolicy()
-
-
-@pytest.fixture
-def policy_manager(eviction_policy):
-    """Cache policy manager."""
-    return CachePolicyManager(cleanup_interval=1, policy=eviction_policy, max_size=100)
-
-
-@pytest.fixture
-def cache(storage, policy_manager, scope_config):
+def cache(storage, scope_config):
     """Configured cache instance."""
-    return create_cache(backend=storage, policy_manager=policy_manager, scope_config=scope_config)
+    return create_cache(backend=storage, scope_config=scope_config)

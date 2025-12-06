@@ -109,20 +109,23 @@ class TestMongoDBStorage:
 
         storage = MongoDBStorage("mongodb://localhost:27017")
         key: _CacheKey = ("scope", "namespace", ("arg1", "arg2"))
-        value: _CacheValue = ("cached_data", 1234567890.0)
+        value = "cached_data"
 
         # Test set
-        storage.set(key, value)
+        storage.set(key, value, 60)
         mock_collection.replace_one.assert_called_once()
 
         # Test get
         import pickle
+        import time
 
-        serialized_value = pickle.dumps(value)
+        value_tuple: _CacheValue = (value, time.monotonic() + 60)
+        serialized_value = pickle.dumps(value_tuple)
         mock_collection.find_one.return_value = {"value": serialized_value}
 
         result = storage.get(key)
-        assert result == value
+        assert result is not None
+        assert result[0] == value
 
     @patch("storages.mongodb_storage.MongoClient")
     def test_get_nonexistent_key(self, mock_client_class):
@@ -250,10 +253,10 @@ class TestMongoDBStorage:
 
         storage = MongoDBStorage("mongodb://localhost:27017")
         key: _CacheKey = ("scope", "namespace", ("arg1",))
-        value: _CacheValue = ("data", 123.0)
+        value = "data"
 
         with pytest.raises(Exception):
-            storage.set(key, value)
+            storage.set(key, value, 60)
 
     @patch("storages.mongodb_storage.MongoClient")
     def test_evict_with_error_logs_but_continues(self, mock_client_class):
