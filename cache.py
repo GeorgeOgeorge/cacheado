@@ -260,11 +260,15 @@ class Cache:
         Args:
             key (Any): Cache key
             scope (_CacheScope): Cache scope (default: "global")
-            scope_params (Optional[Dict[str, Any]]): Scope parameters
-            **kwargs: Additional scope parameters
+            scope_params (Optional[Dict[str, Any]]): Scope parameters as dict (e.g., {"org_id": "org_123"})
+            **kwargs: Scope parameters as kwargs (e.g., org_id="org_123"). Merged with scope_params.
 
         Returns:
             Optional[Any]: Cached value or None
+
+        Examples:
+            >>> cache.get("key", scope="user", org_id="org_123", user_id="user_456")
+            >>> cache.get("key", scope="user", scope_params={"org_id": "org_123", "user_id": "user_456"})
         """
         params = {**(scope_params or {}), **kwargs}
         cache_key = self._make_programmatic_key(key, scope, params)
@@ -286,11 +290,15 @@ class Cache:
             value (Any): Value to cache
             ttl_seconds (Union[int, float]): Time-to-live in seconds
             scope (_CacheScope): Cache scope (default: "global")
-            scope_params (Optional[Dict[str, Any]]): Scope parameters
-            **kwargs: Additional scope parameters
+            scope_params (Optional[Dict[str, Any]]): Scope parameters as dict (e.g., {"org_id": "org_123"})
+            **kwargs: Scope parameters as kwargs (e.g., org_id="org_123"). Merged with scope_params.
 
         Raises:
             Exception: If storage operation fails
+
+        Examples:
+            >>> cache.set("key", "value", 60, scope="user", org_id="org_123", user_id="user_456")
+            >>> cache.set("key", "value", 60, scope="user", scope_params={"org_id": "org_123", "user_id": "user_456"})
         """
         params = {**(scope_params or {}), **kwargs}
         cache_key = self._make_programmatic_key(key, scope, params)
@@ -304,8 +312,12 @@ class Cache:
         Args:
             key (Any): Cache key
             scope (_CacheScope): Cache scope (default: "global")
-            scope_params (Optional[Dict[str, Any]]): Scope parameters
-            **kwargs: Additional scope parameters
+            scope_params (Optional[Dict[str, Any]]): Scope parameters as dict (e.g., {"org_id": "org_123"})
+            **kwargs: Scope parameters as kwargs (e.g., org_id="org_123"). Merged with scope_params.
+
+        Examples:
+            >>> cache.evict("key", scope="user", org_id="org_123", user_id="user_456")
+            >>> cache.evict("key", scope="user", scope_params={"org_id": "org_123", "user_id": "user_456"})
         """
         params = {**(scope_params or {}), **kwargs}
         cache_key = self._make_programmatic_key(key, scope, params)
@@ -331,11 +343,15 @@ class Cache:
         Args:
             key (Any): Cache key
             scope (_CacheScope): Cache scope (default: "global")
-            scope_params (Optional[Dict[str, Any]]): Scope parameters
-            **kwargs: Additional scope parameters
+            scope_params (Optional[Dict[str, Any]]): Scope parameters as dict (e.g., {"org_id": "org_123"})
+            **kwargs: Scope parameters as kwargs (e.g., org_id="org_123"). Merged with scope_params.
 
         Returns:
             Optional[Any]: Cached value or None
+
+        Examples:
+            >>> await cache.aget("key", scope="user", org_id="org_123", user_id="user_456")
+            >>> await cache.aget("key", scope="user", scope_params={"org_id": "org_123", "user_id": "user_456"})
         """
         return await asyncio.to_thread(self.get, key, scope, scope_params, **kwargs)
 
@@ -355,8 +371,12 @@ class Cache:
             value (Any): Value to cache
             ttl_seconds (Union[int, float]): Time-to-live in seconds
             scope (_CacheScope): Cache scope (default: "global")
-            scope_params (Optional[Dict[str, Any]]): Scope parameters
-            **kwargs: Additional scope parameters
+            scope_params (Optional[Dict[str, Any]]): Scope parameters as dict (e.g., {"org_id": "org_123"})
+            **kwargs: Scope parameters as kwargs (e.g., org_id="org_123"). Merged with scope_params.
+
+        Examples:
+            >>> await cache.aset("key", "value", 60, scope="user", org_id="org_123", user_id="user_456")
+            >>> await cache.aset("key", "value", 60, scope="user", scope_params={"org_id": "org_123", "user_id": "user_456"})
         """
         await asyncio.to_thread(self.set, key, value, ttl_seconds, scope, scope_params, **kwargs)
 
@@ -368,8 +388,12 @@ class Cache:
         Args:
             key (Any): Cache key
             scope (_CacheScope): Cache scope (default: "global")
-            scope_params (Optional[Dict[str, Any]]): Scope parameters
-            **kwargs: Additional scope parameters
+            scope_params (Optional[Dict[str, Any]]): Scope parameters as dict (e.g., {"org_id": "org_123"})
+            **kwargs: Scope parameters as kwargs (e.g., org_id="org_123"). Merged with scope_params.
+
+        Examples:
+            >>> await cache.aevict("key", scope="user", org_id="org_123", user_id="user_456")
+            >>> await cache.aevict("key", scope="user", scope_params={"org_id": "org_123", "user_id": "user_456"})
         """
         await asyncio.to_thread(self.evict, key, scope, scope_params, **kwargs)
 
@@ -396,11 +420,16 @@ class Cache:
 
         Args:
             scope (_CacheScope): Scope to evict
-            scope_params (Optional[Dict[str, Any]]): Scope parameters
-            **kwargs: Additional scope parameters
+            scope_params (Optional[Dict[str, Any]]): Scope parameters as dict (e.g., {"org_id": "org_123"})
+            **kwargs: Scope parameters as kwargs (e.g., org_id="org_123"). Merged with scope_params.
 
         Returns:
             int: Number of items evicted
+
+        Examples:
+            >>> cache.evict_by_scope("organization", org_id="org_123")
+            >>> cache.evict_by_scope("user", org_id="org_123", user_id="user_456")
+            >>> cache.evict_by_scope("organization", scope_params={"org_id": "org_123"})
         """
         params = {**(scope_params or {}), **kwargs}
         try:
