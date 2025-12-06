@@ -1,7 +1,5 @@
 from typing import Optional, Protocol
 
-from cache_types import _CacheKey
-
 
 class IEvictionPolicy(Protocol):
     """
@@ -9,41 +7,36 @@ class IEvictionPolicy(Protocol):
     Implementations MUST be thread-safe.
     """
 
-    def notify_set(
-        self, key: _CacheKey, namespace: str, max_items: Optional[int], global_max_size: Optional[int]
-    ) -> Optional[_CacheKey]:
+    def notify_set(self, key: str, max_items: Optional[int], global_max_size: Optional[int]) -> Optional[str]:
         """
         Notifies the policy that an item was set (added/updated).
         The policy must enforce limits and return a key to evict if necessary.
 
         Args:
-            key (_CacheKey): The key that was set.
-            namespace (str): The namespace of the key.
+            key (str): The key that was set.
             max_items (Optional[int]): The max_items limit for this namespace.
             global_max_size (Optional[int]): The global max_size limit.
 
         Returns:
-            Optional[_CacheKey]: A key to evict, or None.
+            Optional[str]: A key to evict, or None.
         """
         ...
 
-    def notify_get(self, key: _CacheKey, namespace: str) -> None:
+    def notify_get(self, key: str) -> None:
         """
         Notifies the policy that an item was accessed (read).
 
         Args:
-            key (_CacheKey): The key that was accessed.
-            namespace (str): The namespace of the key.
+            key (str): The key that was accessed.
         """
         ...
 
-    def notify_evict(self, key: _CacheKey, namespace: str) -> None:
+    def notify_evict(self, key: str) -> None:
         """
         Notifies the policy that an item was evicted (removed).
 
         Args:
-            key (_CacheKey): The key that was evicted.
-            namespace (str): The namespace of the key.
+            key (str): The key that was evicted.
         """
         ...
 

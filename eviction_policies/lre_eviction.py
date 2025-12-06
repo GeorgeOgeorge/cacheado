@@ -1,7 +1,7 @@
 from collections import OrderedDict, defaultdict
 from typing import DefaultDict, Optional
 
-from cache_types import _CacheKey
+from cache_types import CacheKey
 from protocols.eviction_policy import IEvictionPolicy
 
 
@@ -16,37 +16,29 @@ class LRUEvictionPolicy(IEvictionPolicy):
 
     def __init__(self) -> None:
         """Initializes the LRU policy trackers."""
-        self._lru_tracker: OrderedDict[_CacheKey, None] = OrderedDict()
-        self._namespaced_lru_trackers: DefaultDict[str, OrderedDict[_CacheKey, None]] = defaultdict(OrderedDict)
+        self._lru_tracker: OrderedDict[str, None] = OrderedDict()
+        self._namespaced_lru_trackers: DefaultDict[str, OrderedDict[str, None]] = defaultdict(OrderedDict)
 
-    def notify_set(
-        self, key: _CacheKey, namespace: str, max_items: Optional[int], global_max_size: Optional[int]
-    ) -> Optional[_CacheKey]:
+    def notify_set(self, key: str, max_items: Optional[int], global_max_size: Optional[int]) -> Optional[str]:
         """
         Adds an item to LRU trackers and evicts an old item if limits are hit.
 
-        Logic:
-        1. Adds the new key to both global and namespace-specific LRU trackers
-        2. Checks namespace limit first - if exceeded, evicts oldest item from namespace
-        3. If no namespace eviction, checks global limit - if exceeded, evicts globally oldest item
-        4. Removes evicted key from all relevant trackers to maintain consistency
-
         Args:
-            key (_CacheKey): The key that was set.
-            namespace (str): The namespace of the key.
+            key (str): The key that was set.
             max_items (Optional[int]): The max_items limit for this namespace.
             global_max_size (Optional[int]): The global max_size limit.
 
         Returns:
-            Optional[_CacheKey]: The key to evict, or None.
+            Optional[str]: The key to evict, or None.
         """
+        namespace = CacheKey.extract_namespace(key)
         self._lru_tracker[key] = None
         if namespace:
             self._namespaced_lru_trackers[namespace][key] = None
 
-        key_to_evict: Optional[_CacheKey] = None
+        key_to_evict: Optional[str] = None
 
-        if max_items is not None:
+        if max_items is not None and namespace:
             ns_tracker = self._namespaced_lru_trackers[namespace]
             if len(ns_tracker) > max_items:
                 try:
@@ -63,37 +55,36 @@ class LRUEvictionPolicy(IEvictionPolicy):
 
         if key_to_evict:
             self._lru_tracker.pop(key_to_evict, None)
-
-            evicted_ns = key_to_evict[1]
+            evicted_ns = CacheKey.extract_namespace(key_to_evict)
             if evicted_ns in self._namespaced_lru_trackers:
                 self._namespaced_lru_trackers[evicted_ns].pop(key_to_evict, None)
 
         return key_to_evict
 
-    def notify_get(self, key: _CacheKey, namespace: str) -> None:
+    def notify_get(self, key: str) -> None:
         """
         Moves the accessed item to the end (MRU) of the LRU trackers.
 
         Args:
-            key (_CacheKey): The key that was accessed.
-            namespace (str): The namespace of the key.
+            key (str): The key that was accessed.
         """
         try:
             self._lru_tracker.move_to_end(key)
+            namespace = CacheKey.extract_namespace(key)
             if namespace in self._namespaced_lru_trackers:
                 self._namespaced_lru_trackers[namespace].move_to_end(key)
         except (KeyError, Exception):
             pass
 
-    def notify_evict(self, key: _CacheKey, namespace: str) -> None:
+    def notify_evict(self, key: str) -> None:
         """
         Removes an item from all LRU trackers.
 
         Args:
-            key (_CacheKey): The key that was evicted.
-            namespace (str): The namespace of the key.
+            key (str): The key that was evicted.
         """
         self._lru_tracker.pop(key, None)
+        namespace = CacheKey.extract_namespace(key)
         if namespace in self._namespaced_lru_trackers:
             self._namespaced_lru_trackers[namespace].pop(key, None)
             if not self._namespaced_lru_trackers[namespace]:

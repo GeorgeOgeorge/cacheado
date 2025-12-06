@@ -2,7 +2,7 @@ import logging
 import time
 from typing import Any, Dict, List, Optional, Union
 
-from cache_types import _CacheKey, _CacheValue
+from cache_types import _CacheValue
 from eviction_policies.lre_eviction import LRUEvictionPolicy
 from protocols.storage_provider import IStorageProvider
 
@@ -22,16 +22,16 @@ class InMemory(IStorageProvider):
         Args:
             max_size (Optional[int]): Maximum number of items (default: None)
         """
-        self._cache: Dict[_CacheKey, _CacheValue] = {}
+        self._cache: Dict[str, _CacheValue] = {}
         self._lru_policy = LRUEvictionPolicy()
         self._max_size = max_size
         logging.info(f"InMemory initialized: max_size={max_size}")
 
-    def get_all_keys(self) -> List[_CacheKey]:
+    def get_all_keys(self) -> List[str]:
         """Returns all cache keys.
 
         Returns:
-            List[_CacheKey]: List of all keys
+            List[str]: List of all keys
         """
         return list(self._cache.keys())
 
@@ -49,11 +49,11 @@ class InMemory(IStorageProvider):
             "lru_namespaces": self._lru_policy.get_namespace_count(),
         }
 
-    def get(self, key: _CacheKey) -> Optional[_CacheValue]:
+    def get(self, key: str) -> Optional[_CacheValue]:
         """Gets value with lazy TTL check and LRU tracking.
 
         Args:
-            key (_CacheKey): Cache key
+            key (str): Cache key
 
         Returns:
             Optional[_CacheValue]: Value tuple or None if not found/expired
@@ -67,39 +67,39 @@ class InMemory(IStorageProvider):
             self.evict(key)
             return None
 
-        self._lru_policy.notify_get(key, key[1])
+        self._lru_policy.notify_get(key)
         return value_tuple
 
-    def set(self, key: _CacheKey, value: Any, ttl_seconds: Union[int, float]) -> None:
+    def set(self, key: str, value: Any, ttl_seconds: Union[int, float]) -> None:
         """Sets value with TTL and LRU eviction check.
 
         Args:
-            key (_CacheKey): Cache key
+            key (str): Cache key
             value (Any): Value to store
             ttl_seconds (Union[int, float]): Time-to-live in seconds
         """
         expiry = time.monotonic() + ttl_seconds
         self._cache[key] = (value, expiry)
 
-        key_to_evict = self._lru_policy.notify_set(key, key[1], None, self._max_size)
+        key_to_evict = self._lru_policy.notify_set(key, None, self._max_size)
         if key_to_evict:
             self.evict(key_to_evict)
 
-    def evict(self, key: _CacheKey) -> None:
+    def evict(self, key: str) -> None:
         """Evicts key and notifies LRU policy.
 
         Args:
-            key (_CacheKey): Cache key to evict
+            key (str): Cache key to evict
         """
         self._cache.pop(key, None)
-        self._lru_policy.notify_evict(key, key[1])
+        self._lru_policy.notify_evict(key)
 
     def clear(self) -> None:
         """Clears all data and LRU policy."""
         self._cache.clear()
         self._lru_policy.notify_clear()
 
-    async def aget(self, key: _CacheKey) -> Optional[_CacheValue]:
+    async def aget(self, key: str) -> Optional[_CacheValue]:
         """Async get.
 
         Args:
@@ -110,7 +110,7 @@ class InMemory(IStorageProvider):
         """
         return self.get(key)
 
-    async def aset(self, key: _CacheKey, value: Any, ttl_seconds: Union[int, float]) -> None:
+    async def aset(self, key: str, value: Any, ttl_seconds: Union[int, float]) -> None:
         """Async set.
 
         Args:
@@ -120,7 +120,7 @@ class InMemory(IStorageProvider):
         """
         self.set(key, value, ttl_seconds)
 
-    async def aevict(self, key: _CacheKey) -> None:
+    async def aevict(self, key: str) -> None:
         """Async evict.
 
         Args:
@@ -128,7 +128,7 @@ class InMemory(IStorageProvider):
         """
         self.evict(key)
 
-    async def aget_all_keys(self) -> List[_CacheKey]:
+    async def aget_all_keys(self) -> List[str]:
         """Async get all keys.
 
         Returns:

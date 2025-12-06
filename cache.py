@@ -7,7 +7,7 @@ from typing import Any, Callable, Dict, Optional, Tuple, Union
 from typing_extensions import ParamSpec, TypeVar
 
 from cache_scope_config import ScopeConfig
-from cache_types import _CacheKey, _CacheScope
+from cache_types import CacheKey, _CacheScope
 from protocols.storage_provider import IStorageProvider
 from storages.in_memory import InMemory
 
@@ -42,16 +42,16 @@ class Cache:
         self._evictions: int = 0
         logging.info(f"Cache initialized with {backend.__class__.__name__}")
 
-    def _internal_get(self, key: _CacheKey) -> Optional[Any]:
+    def _internal_get(self, key: CacheKey) -> Optional[Any]:
         """Gets value from storage and updates statistics.
 
         Args:
-            key (_CacheKey): Cache key
+            key (CacheKey): Cache key
 
         Returns:
             Optional[Any]: Cached value or None if not found
         """
-        value_tuple = self._storage.get(key)
+        value_tuple = self._storage.get(key.to_string())
         if value_tuple is None:
             self._misses += 1
             return None
@@ -59,26 +59,26 @@ class Cache:
         self._hits += 1
         return value_tuple[0]
 
-    def _internal_set(self, key: _CacheKey, value: Any, ttl_seconds: Union[int, float]) -> None:
+    def _internal_set(self, key: CacheKey, value: Any, ttl_seconds: Union[int, float]) -> None:
         """Sets value in storage.
 
         Args:
-            key (_CacheKey): Cache key
+            key (CacheKey): Cache key
             value (Any): Value to cache
             ttl_seconds (Union[int, float]): Time-to-live in seconds
         """
         if ttl_seconds <= 0:
             return
 
-        self._storage.set(key, value, ttl_seconds)
+        self._storage.set(key.to_string(), value, ttl_seconds)
 
-    def _internal_evict(self, key: _CacheKey) -> None:
+    def _internal_evict(self, key: CacheKey) -> None:
         """Evicts key from storage and updates statistics.
 
         Args:
-            key (_CacheKey): Cache key to evict
+            key (CacheKey): Cache key to evict
         """
-        self._storage.evict(key)
+        self._storage.evict(key.to_string())
         self._evictions += 1
 
     def _make_args_key(self, *args: Any, **kwargs: Any) -> Tuple[Any, ...]:
@@ -121,9 +121,22 @@ class Cache:
         self._scope_config.validate_scope_params(target, params)
         return self._scope_config.build_scope_path(params)
 
+    def _compose_cache_key(self, scope_prefix: str, namespace: str, args_key: Tuple[Any, ...]) -> CacheKey:
+        """Composes a unique cache key from components.
+
+        Args:
+            scope_prefix (str): Scope prefix path
+            namespace (str): Function name or namespace
+            args_key (Tuple[Any, ...]): Serialized arguments
+
+        Returns:
+            CacheKey: Cache key object
+        """
+        return CacheKey(scope_prefix, namespace, args_key)
+
     def _make_cache_key(
         self, func_name: str, args_key: Tuple[Any, ...], scope: _CacheScope, kwargs: Dict[str, Any]
-    ) -> _CacheKey:
+    ) -> CacheKey:
         """Creates cache key for decorated function.
 
         Args:
@@ -136,9 +149,9 @@ class Cache:
             _CacheKey: Composite cache key
         """
         prefix = self._build_scope_prefix(scope, kwargs)
-        return (prefix, func_name, args_key)
+        return self._compose_cache_key(prefix, func_name, args_key)
 
-    def _make_programmatic_key(self, key: Any, scope: _CacheScope, params: Dict[str, Any]) -> _CacheKey:
+    def _make_programmatic_key(self, key: Any, scope: _CacheScope, params: Dict[str, Any]) -> CacheKey:
         """Creates cache key for programmatic access.
 
         Args:
@@ -150,7 +163,7 @@ class Cache:
             _CacheKey: Composite cache key
         """
         prefix = self._build_scope_prefix(scope, params)
-        return (prefix, "__programmatic__", (key,))
+        return self._compose_cache_key(prefix, "__programmatic__", (key,))
 
     def cache(
         self, ttl_seconds: Union[int, float], scope: _CacheScope = "global"
@@ -397,9 +410,10 @@ class Cache:
             return 0
 
         count = 0
-        for key in self._storage.get_all_keys():
-            if key[0] == prefix or self._scope_config.is_descendant_of(key[0], prefix):
-                self._internal_evict(key)
+        for key_str in self._storage.get_all_keys():
+            cache_key = CacheKey.from_string(key_str)
+            if cache_key.scope_prefix == prefix or self._scope_config.is_descendant_of(cache_key.scope_prefix, prefix):
+                self._internal_evict(cache_key)
                 count += 1
 
         if count > 0:

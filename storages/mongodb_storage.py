@@ -1,5 +1,4 @@
 import logging
-import pickle
 from typing import Any, List, Optional, Union
 
 try:
@@ -9,7 +8,7 @@ try:
 except ImportError:
     raise ImportError("The 'pymongo' package is required for MongoDBStorage. Install it via 'pip install cacehado[mongodb]'.")
 
-from cache_types import _CacheKey, _CacheValue
+from cache_types import _CacheValue
 from protocols.storage_provider import IStorageProvider
 
 
@@ -52,18 +51,15 @@ class MongoDBStorage(IStorageProvider):
             logging.error(f"Failed to connect to MongoDB: {e}")
             raise
 
-    def _serialize_key(self, key: _CacheKey) -> str:
+    def _serialize_key(self, key: str) -> str:
         """Serializes cache key for MongoDB storage."""
-        return pickle.dumps(key).hex()
+        return key
 
-    def _deserialize_key(self, serialized_key: str) -> _CacheKey:
+    def _deserialize_key(self, serialized_key: str) -> str:
         """Deserializes cache key from MongoDB storage."""
-        result = pickle.loads(bytes.fromhex(serialized_key))
-        if not isinstance(result, tuple) or len(result) != 3:
-            raise ValueError(f"Invalid cache key format: {result}")
-        return result
+        return serialized_key
 
-    def get(self, key: _CacheKey) -> Optional[_CacheValue]:
+    def get(self, key: str) -> Optional[_CacheValue]:
         """
         Atomically gets a value tuple (value, expiry) from MongoDB.
 
@@ -88,7 +84,7 @@ class MongoDBStorage(IStorageProvider):
             logging.error(f"Error getting key {key}: {e}")
             return None
 
-    def set(self, key: _CacheKey, value: Any, ttl_seconds: Union[int, float]) -> None:
+    def set(self, key: str, value: Any, ttl_seconds: Union[int, float]) -> None:
         """
         Sets a value with MongoDB TTL index.
 
@@ -114,7 +110,7 @@ class MongoDBStorage(IStorageProvider):
             logging.error(f"Error setting key {key}: {e}")
             raise
 
-    def evict(self, key: _CacheKey) -> None:
+    def evict(self, key: str) -> None:
         """
         Atomically evicts a key from MongoDB.
 
@@ -127,7 +123,7 @@ class MongoDBStorage(IStorageProvider):
         except Exception as e:
             logging.error(f"Error evicting key {key}: {e}")
 
-    def get_all_keys(self) -> List[_CacheKey]:
+    def get_all_keys(self) -> List[str]:
         """
         Gets a copy of all keys in MongoDB.
 
@@ -152,7 +148,7 @@ class MongoDBStorage(IStorageProvider):
 
     # TODO use motor (async MongoDB driver).
 
-    async def aget(self, key: _CacheKey) -> Optional[_CacheValue]:
+    async def aget(self, key: str) -> Optional[_CacheValue]:
         """
         Asynchronously gets a value tuple (value, expiry) from MongoDB.
         Non-blocking operation.
@@ -165,7 +161,7 @@ class MongoDBStorage(IStorageProvider):
         """
         return self.get(key)
 
-    async def aset(self, key: _CacheKey, value: Any, ttl_seconds: Union[int, float]) -> None:
+    async def aset(self, key: str, value: Any, ttl_seconds: Union[int, float]) -> None:
         """
         Asynchronously sets a value with TTL.
 
@@ -176,7 +172,7 @@ class MongoDBStorage(IStorageProvider):
         """
         self.set(key, value, ttl_seconds)
 
-    async def aevict(self, key: _CacheKey) -> None:
+    async def aevict(self, key: str) -> None:
         """
         Asynchronously evicts a key from MongoDB.
         Non-blocking operation.
@@ -186,7 +182,7 @@ class MongoDBStorage(IStorageProvider):
         """
         self.evict(key)
 
-    async def aget_all_keys(self) -> List[_CacheKey]:
+    async def aget_all_keys(self) -> List[str]:
         """
         Asynchronously gets a copy of all keys in MongoDB.
         Non-blocking operation.

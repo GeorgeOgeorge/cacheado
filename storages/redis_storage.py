@@ -1,5 +1,4 @@
 import logging
-import pickle
 from typing import Any, List, Optional, Union
 
 try:
@@ -7,7 +6,7 @@ try:
 except ImportError:
     raise ImportError("The 'redis' package is required for RedisStorage. Install it via 'pip install cacehado[redis]'.")
 
-from cache_types import _CacheKey, _CacheValue
+from cache_types import _CacheValue
 from protocols.storage_provider import IStorageProvider
 
 
@@ -42,17 +41,13 @@ class RedisStorage(IStorageProvider):
             logging.error(f"Failed to connect to Redis: {e}")
             raise
 
-    def _serialize_key(self, key: _CacheKey) -> str:
+    def _serialize_key(self, key: str) -> str:
         """Serializes cache key for Redis storage."""
-        return pickle.dumps(key).hex()
+        return key
 
-    def _deserialize_key(self, serialized_key: str) -> _CacheKey:
+    def _deserialize_key(self, serialized_key: str) -> str:
         """Deserializes cache key from Redis storage."""
-        result = pickle.loads(bytes.fromhex(serialized_key))
-
-        if not isinstance(result, tuple) or len(result) != 3:
-            raise ValueError(f"Invalid cache key format: {result}")
-        return result
+        return serialized_key
 
     def _serialize_value(self, value: _CacheValue) -> bytes:
         """Serializes cache value for Redis storage."""
@@ -65,7 +60,7 @@ class RedisStorage(IStorageProvider):
             raise ValueError(f"Invalid cache value format: {result}")
         return result
 
-    def get(self, key: _CacheKey) -> Optional[_CacheValue]:
+    def get(self, key: str) -> Optional[_CacheValue]:
         """
         Atomically gets a value tuple (value, expiry) from Redis.
 
@@ -87,7 +82,7 @@ class RedisStorage(IStorageProvider):
             logging.error(f"Error getting key {key}: {e}")
             return None
 
-    def set(self, key: _CacheKey, value: Any, ttl_seconds: Union[int, float]) -> None:
+    def set(self, key: str, value: Any, ttl_seconds: Union[int, float]) -> None:
         """
         Sets a value with Redis native TTL (SETEX).
 
@@ -108,7 +103,7 @@ class RedisStorage(IStorageProvider):
             logging.error(f"Error setting key {key}: {e}")
             raise
 
-    def evict(self, key: _CacheKey) -> None:
+    def evict(self, key: str) -> None:
         """
         Atomically evicts a key from Redis.
 
@@ -121,7 +116,7 @@ class RedisStorage(IStorageProvider):
         except Exception as e:
             logging.error(f"Error evicting key {key}: {e}")
 
-    def get_all_keys(self) -> List[_CacheKey]:
+    def get_all_keys(self) -> List[str]:
         """
         Gets a copy of all keys in Redis.
 
@@ -146,7 +141,7 @@ class RedisStorage(IStorageProvider):
 
     # TODO use aioredis or redis[asyncio].
 
-    async def aget(self, key: _CacheKey) -> Optional[_CacheValue]:
+    async def aget(self, key: str) -> Optional[_CacheValue]:
         """
         Asynchronously gets a value tuple (value, expiry) from Redis.
         Non-blocking operation.
@@ -159,7 +154,7 @@ class RedisStorage(IStorageProvider):
         """
         return self.get(key)
 
-    async def aset(self, key: _CacheKey, value: Any, ttl_seconds: Union[int, float]) -> None:
+    async def aset(self, key: str, value: Any, ttl_seconds: Union[int, float]) -> None:
         """
         Asynchronously sets a value with TTL.
 
@@ -170,7 +165,7 @@ class RedisStorage(IStorageProvider):
         """
         self.set(key, value, ttl_seconds)
 
-    async def aevict(self, key: _CacheKey) -> None:
+    async def aevict(self, key: str) -> None:
         """
         Asynchronously evicts a key from Redis.
         Non-blocking operation.
@@ -180,7 +175,7 @@ class RedisStorage(IStorageProvider):
         """
         self.evict(key)
 
-    async def aget_all_keys(self) -> List[_CacheKey]:
+    async def aget_all_keys(self) -> List[str]:
         """
         Asynchronously gets a copy of all keys in Redis.
         Non-blocking operation.

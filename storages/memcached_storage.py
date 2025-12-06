@@ -1,5 +1,4 @@
 import logging
-import pickle
 from typing import Any, List, Optional, Union
 
 try:
@@ -9,7 +8,7 @@ except ImportError:
         "The 'pymemcache' package is required for MemcachedStorage. Install it via 'pip install cacehado[memcached]'."
     )
 
-from cache_types import _CacheKey, _CacheValue
+from cache_types import _CacheValue
 from protocols.storage_provider import IStorageProvider
 
 
@@ -45,18 +44,15 @@ class MemcachedStorage(IStorageProvider):
             logging.error(f"Failed to connect to Memcached: {e}")
             raise
 
-    def _serialize_key(self, key: _CacheKey) -> str:
+    def _serialize_key(self, key: str) -> str:
         """Serializes cache key for Memcached storage."""
-        return pickle.dumps(key).hex()
+        return key
 
-    def _deserialize_key(self, serialized_key: str) -> _CacheKey:
+    def _deserialize_key(self, serialized_key: str) -> str:
         """Deserializes cache key from Memcached storage."""
-        result = pickle.loads(bytes.fromhex(serialized_key))
-        if not isinstance(result, tuple) or len(result) != 3:
-            raise ValueError(f"Invalid cache key format: {result}")
-        return result
+        return serialized_key
 
-    def get(self, key: _CacheKey) -> Optional[_CacheValue]:
+    def get(self, key: str) -> Optional[_CacheValue]:
         """
         Atomically gets a value tuple (value, expiry) from Memcached.
 
@@ -81,7 +77,7 @@ class MemcachedStorage(IStorageProvider):
             logging.error(f"Error getting key {key}: {e}")
             return None
 
-    def set(self, key: _CacheKey, value: Any, ttl_seconds: Union[int, float]) -> None:
+    def set(self, key: str, value: Any, ttl_seconds: Union[int, float]) -> None:
         """
         Sets a value with Memcached native TTL.
 
@@ -102,7 +98,7 @@ class MemcachedStorage(IStorageProvider):
             logging.error(f"Error setting key {key}: {e}")
             raise
 
-    def evict(self, key: _CacheKey) -> None:
+    def evict(self, key: str) -> None:
         """
         Atomically evicts a key from Memcached.
 
@@ -115,7 +111,7 @@ class MemcachedStorage(IStorageProvider):
         except Exception as e:
             logging.error(f"Error evicting key {key}: {e}")
 
-    def get_all_keys(self) -> List[_CacheKey]:
+    def get_all_keys(self) -> List[str]:
         """
         Gets all keys from Memcached.
         Note: Memcached doesn't natively support key enumeration,
@@ -136,7 +132,7 @@ class MemcachedStorage(IStorageProvider):
 
     # TODO use aiomcache.
 
-    async def aget(self, key: _CacheKey) -> Optional[_CacheValue]:
+    async def aget(self, key: str) -> Optional[_CacheValue]:
         """
         Asynchronously gets a value tuple (value, expiry) from Memcached.
         Non-blocking operation.
@@ -149,7 +145,7 @@ class MemcachedStorage(IStorageProvider):
         """
         return self.get(key)
 
-    async def aset(self, key: _CacheKey, value: Any, ttl_seconds: Union[int, float]) -> None:
+    async def aset(self, key: str, value: Any, ttl_seconds: Union[int, float]) -> None:
         """
         Asynchronously sets a value with TTL.
 
@@ -160,7 +156,7 @@ class MemcachedStorage(IStorageProvider):
         """
         self.set(key, value, ttl_seconds)
 
-    async def aevict(self, key: _CacheKey) -> None:
+    async def aevict(self, key: str) -> None:
         """
         Asynchronously evicts a key from Memcached.
         Non-blocking operation.
@@ -170,7 +166,7 @@ class MemcachedStorage(IStorageProvider):
         """
         self.evict(key)
 
-    async def aget_all_keys(self) -> List[_CacheKey]:
+    async def aget_all_keys(self) -> List[str]:
         """
         Asynchronously gets a copy of all keys in Memcached.
         Note: Memcached doesn't natively support key enumeration.
