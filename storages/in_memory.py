@@ -103,7 +103,7 @@ class InMemory(IStorageProvider):
         """Async get.
 
         Args:
-            key (_CacheKey): Cache key
+            key (str): Cache key
 
         Returns:
             Optional[_CacheValue]: Value tuple or None
@@ -114,7 +114,7 @@ class InMemory(IStorageProvider):
         """Async set.
 
         Args:
-            key (_CacheKey): Cache key
+            key (str): Cache key
             value (Any): Value to store
             ttl_seconds (Union[int, float]): Time-to-live in seconds
         """
@@ -124,7 +124,7 @@ class InMemory(IStorageProvider):
         """Async evict.
 
         Args:
-            key (_CacheKey): Cache key to evict
+            key (str): Cache key to evict
         """
         self.evict(key)
 
@@ -132,7 +132,7 @@ class InMemory(IStorageProvider):
         """Async get all keys.
 
         Returns:
-            List[_CacheKey]: List of all keys
+            List[str]: List of all keys
         """
         return self.get_all_keys()
 

@@ -9,7 +9,7 @@ Storages are fully responsible for their own eviction policies and TTL managemen
 
 from .cache import Cache, create_cache
 from .cache_scope_config import ScopeConfig, ScopeLevel
-from .cache_types import _CacheKey, _CacheScope, _CacheValue
+from .cache_types import CacheKey, _CacheScope, _CacheValue
 from .storages.in_memory import InMemory
 from .storages.memcached_storage import MemcachedStorage
 from .storages.mongodb_storage import MongoDBStorage
@@ -26,7 +26,7 @@ __all__ = [
     "MemcachedStorage",
     "ScopeConfig",
     "ScopeLevel",
-    "_CacheKey",
+    "CacheKey",
     "_CacheValue",
     "_CacheScope",
 ]

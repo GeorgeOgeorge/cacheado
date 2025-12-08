@@ -42,7 +42,7 @@ class Cache:
         self._evictions: int = 0
         logging.info(f"Cache initialized with {backend.__class__.__name__}")
 
-    def _internal_get(self, key: CacheKey) -> Optional[Any]:
+    def _get_from_storage(self, key: CacheKey) -> Optional[Any]:
         """Gets value from storage and updates statistics.
 
         Args:
@@ -51,7 +51,7 @@ class Cache:
         Returns:
             Optional[Any]: Cached value or None if not found
         """
-        value_tuple = self._storage.get(key.to_string())
+        value_tuple = self._storage.get(key.as_string())
         if value_tuple is None:
             self._misses += 1
             return None
@@ -59,7 +59,7 @@ class Cache:
         self._hits += 1
         return value_tuple[0]
 
-    def _internal_set(self, key: CacheKey, value: Any, ttl_seconds: Union[int, float]) -> None:
+    def _set_in_storage(self, key: CacheKey, value: Any, ttl_seconds: Union[int, float]) -> None:
         """Sets value in storage.
 
         Args:
@@ -70,15 +70,15 @@ class Cache:
         if ttl_seconds <= 0:
             return
 
-        self._storage.set(key.to_string(), value, ttl_seconds)
+        self._storage.set(key.as_string(), value, ttl_seconds)
 
-    def _internal_evict(self, key: CacheKey) -> None:
+    def _evict_from_storage(self, key: CacheKey) -> None:
         """Evicts key from storage and updates statistics.
 
         Args:
             key (CacheKey): Cache key to evict
         """
-        self._storage.evict(key.to_string())
+        self._storage.evict(key.as_string())
         self._evictions += 1
 
     def _make_args_key(self, *args: Any, **kwargs: Any) -> Tuple[Any, ...]:
@@ -209,12 +209,12 @@ class Cache:
                 logging.warning(f"{func.__name__}: {e}. Skipping cache")
                 return func(*args, **kwargs)
 
-            cached = self._internal_get(key)
+            cached = self._get_from_storage(key)
             if cached is not None:
                 return cached  # type: ignore
 
             result = func(*args, **kwargs)
-            self._internal_set(key, result, ttl_seconds)
+            self._set_in_storage(key, result, ttl_seconds)
             return result
 
         return wrapper
@@ -242,12 +242,12 @@ class Cache:
                 logging.warning(f"{func.__name__}: {e}. Skipping cache")
                 return await func(*args, **kwargs)  # type: ignore
 
-            cached = await asyncio.to_thread(self._internal_get, key)
+            cached = await asyncio.to_thread(self._get_from_storage, key)
             if cached is not None:
                 return cached  # type: ignore
 
             result = await func(*args, **kwargs)  # type: ignore
-            await asyncio.to_thread(self._internal_set, key, result, ttl_seconds)
+            await asyncio.to_thread(self._set_in_storage, key, result, ttl_seconds)
             return result  # type: ignore
 
         return wrapper  # type: ignore
@@ -272,7 +272,7 @@ class Cache:
         """
         params = {**(scope_params or {}), **kwargs}
         cache_key = self._make_programmatic_key(key, scope, params)
-        return self._internal_get(cache_key)
+        return self._get_from_storage(cache_key)
 
     def set(
         self,
@@ -302,7 +302,7 @@ class Cache:
         """
         params = {**(scope_params or {}), **kwargs}
         cache_key = self._make_programmatic_key(key, scope, params)
-        self._internal_set(cache_key, value, ttl_seconds)
+        self._set_in_storage(cache_key, value, ttl_seconds)
 
     def evict(
         self, key: Any, scope: _CacheScope = "global", scope_params: Optional[Dict[str, Any]] = None, **kwargs: Any
@@ -321,7 +321,7 @@ class Cache:
         """
         params = {**(scope_params or {}), **kwargs}
         cache_key = self._make_programmatic_key(key, scope, params)
-        self._internal_evict(cache_key)
+        self._evict_from_storage(cache_key)
 
     def clear(self) -> None:
         """Clears entire cache and resets statistics.
@@ -442,7 +442,7 @@ class Cache:
         for key_str in self._storage.get_all_keys():
             cache_key = CacheKey.from_string(key_str)
             if cache_key.scope_prefix == prefix or self._scope_config.is_descendant_of(cache_key.scope_prefix, prefix):
-                self._internal_evict(cache_key)
+                self._evict_from_storage(cache_key)
                 count += 1
 
         if count > 0:
