@@ -16,40 +16,49 @@ T = TypeVar("T")
 
 
 class Cache:
-    """Public API for cache operations with scope management.
+    """High-performance Cache Manager with support for scope strategies and pluggable storages.
 
-    Responsibilities:
-    - Public API (get/set/evict/clear, decorator)
-    - Namespace/scope management
-    - Statistics aggregation
-
-    Storage handles: TTL, eviction, cleanup
+    Attributes:
+        _storage (IStorageProvider): The storage backend (Redis, Memcached, Memory, etc.).
+        _scope_config (ScopeConfig): Configuration rules for scope-based key resolution.
+        _hits (int): Counter for cache hits (for telemetry).
+        _misses (int): Counter for cache misses (for telemetry).
+        _evictions (int): Counter for manual evictions (for telemetry).
     """
 
     __slots__ = ("_storage", "_scope_config", "_hits", "_misses", "_evictions")
 
-    def __init__(self, backend: IStorageProvider, scope_config: ScopeConfig) -> None:
-        """Initializes cache with storage backend and scope configuration.
+    def __init__(
+        self,
+        storage_provider: Optional[IStorageProvider] = None,
+        scope_config: Optional[ScopeConfig] = None,
+    ) -> None:
+        """Initializes the Cache manager with Dependency Injection.
 
         Args:
-            backend (IStorageProvider): Storage backend
-            scope_config (ScopeConfig): Scope hierarchy configuration
+            storage_provider (Optional[IStorageProvider]): Implementation of the storage protocol.
+                If None, uses `InMemory`.
+            scope_config (Optional[ScopeConfig]): Configuration for dynamic scope resolution.
+                If None, uses the default configuration.
         """
-        self._storage = backend
-        self._scope_config = scope_config
+        self._storage = storage_provider or InMemory()
+        self._scope_config = scope_config or ScopeConfig()
         self._hits: int = 0
         self._misses: int = 0
         self._evictions: int = 0
-        logging.info(f"Cache initialized with {backend.__class__.__name__}")
+        logging.info(f"Cache initialized with backend: {self._storage.__class__.__name__}")
 
     def _get_from_storage(self, key: CacheKey) -> Optional[Any]:
-        """Gets value from storage and updates statistics.
+        """Retrieves a value from the underlying storage using a structured key.
+
+        Converts the `CacheKey` object to its string representation before querying the backend.
+        Manages hit/miss counters internally.
 
         Args:
-            key (CacheKey): Cache key
+            key (CacheKey): The structured unique key of the item.
 
         Returns:
-            Optional[Any]: Cached value or None if not found
+            Optional[Any]: The cached value if found and valid (TTL), otherwise None.
         """
         value_tuple = self._storage.get(key.as_string())
         if value_tuple is None:
@@ -60,12 +69,12 @@ class Cache:
         return value_tuple[0]
 
     def _set_in_storage(self, key: CacheKey, value: Any, ttl_seconds: Union[int, float]) -> None:
-        """Sets value in storage.
+        """Persists a value in the underlying storage.
 
         Args:
-            key (CacheKey): Cache key
-            value (Any): Value to cache
-            ttl_seconds (Union[int, float]): Time-to-live in seconds
+            key (CacheKey): The structured unique key.
+            value (Any): The data to be stored. Must be serializable by the chosen backend.
+            ttl_seconds (Union[int, float]): Time-to-live in seconds.
         """
         if ttl_seconds <= 0:
             return
@@ -73,46 +82,43 @@ class Cache:
         self._storage.set(key.as_string(), value, ttl_seconds)
 
     def _evict_from_storage(self, key: CacheKey) -> None:
-        """Evicts key from storage and updates statistics.
+        """Removes a specific item from storage.
 
         Args:
-            key (CacheKey): Cache key to evict
+            key (CacheKey): The structured key of the item to remove.
         """
         self._storage.evict(key.as_string())
         self._evictions += 1
 
     def _make_args_key(self, *args: Any, **kwargs: Any) -> Tuple[Any, ...]:
-        """Creates hashable key from function arguments.
+        """Serializes function arguments to create a unique signature (hashable).
 
         Args:
-            *args: Positional arguments
-            **kwargs: Keyword arguments
+            *args: Positional arguments of the decorated function.
+            **kwargs: Keyword arguments of the decorated function.
 
         Returns:
-            Tuple[Any, ...]: Serialized arguments as tuple
+            Tuple[Any, ...]: A tuple containing the serialized bytes of the arguments.
 
         Raises:
-            TypeError: If arguments cannot be serialized
+            TypeError: If any argument cannot be serialized (pickled).
         """
         try:
             key_repr = (args, tuple(sorted(kwargs.items())))
             return (pickle.dumps(key_repr, protocol=pickle.HIGHEST_PROTOCOL),)
         except (pickle.PicklingError, TypeError) as e:
-            logging.warning(f"Failed to serialize arguments: {e}")
-            raise TypeError(f"Unhashable arguments: {e}")
+            logging.warning(f"Failed to serialize arguments for cache key: {e}")
+            raise TypeError(f"Unhashable/non-serializable arguments: {e}")
 
     def _build_scope_prefix(self, scope: _CacheScope, params: Dict[str, Any]) -> str:
-        """Builds scope prefix from scope and parameters.
+        """Constructs the scope prefix based on configuration and runtime parameters.
 
         Args:
-            scope (_CacheScope): Scope level or path
-            params (Dict[str, Any]): Scope parameters
+            scope (_CacheScope): The logical scope name (e.g., 'global', 'user', 'tenant').
+            params (Dict[str, Any]): Dictionary of parameters (usually kwargs) to resolve the scope.
 
         Returns:
-            str: Scope prefix path
-
-        Raises:
-            ValueError: If invalid scope type
+            str: The resolved prefix for the cache key.
         """
         if scope == "global":
             return "global"
@@ -122,45 +128,45 @@ class Cache:
         return self._scope_config.build_scope_path(params)
 
     def _compose_cache_key(self, scope_prefix: str, namespace: str, args_key: Tuple[Any, ...]) -> CacheKey:
-        """Composes a unique cache key from components.
+        """Factory method to create a CacheKey instance.
 
         Args:
-            scope_prefix (str): Scope prefix path
-            namespace (str): Function name or namespace
-            args_key (Tuple[Any, ...]): Serialized arguments
+            scope_prefix (str): The resolved scope part.
+            namespace (str): The logical namespace (function name or identifier).
+            args_key (Tuple[Any, ...]): The tuple of serialized arguments.
 
         Returns:
-            CacheKey: Cache key object
+            CacheKey: The constructed key object.
         """
         return CacheKey(scope_prefix, namespace, args_key)
 
     def _make_cache_key(
         self, func_name: str, args_key: Tuple[Any, ...], scope: _CacheScope, kwargs: Dict[str, Any]
     ) -> CacheKey:
-        """Creates cache key for decorated function.
+        """Orchestrates the creation of a CacheKey for a decorated function.
 
         Args:
-            func_name (str): Function name
-            args_key (Tuple[Any, ...]): Serialized arguments
-            scope (_CacheScope): Cache scope
-            kwargs (Dict[str, Any]): Function kwargs (for scope params)
+            func_name (str): Name of the function being cached.
+            args_key (Tuple[Any, ...]): Serialized arguments.
+            scope (_CacheScope): Scope definition.
+            kwargs (Dict[str, Any]): Function kwargs (used to extract scope IDs).
 
         Returns:
-            _CacheKey: Composite cache key
+            CacheKey: The complete cache key.
         """
         prefix = self._build_scope_prefix(scope, kwargs)
         return self._compose_cache_key(prefix, func_name, args_key)
 
     def _make_programmatic_key(self, key: Any, scope: _CacheScope, params: Dict[str, Any]) -> CacheKey:
-        """Creates cache key for programmatic access.
+        """Orchestrates the creation of a CacheKey for manual calls (get/set).
 
         Args:
-            key (Any): User-provided key
-            scope (_CacheScope): Cache scope
-            params (Dict[str, Any]): Scope parameters
+            key (Any): The user-provided identifier.
+            scope (_CacheScope): Scope definition.
+            params (Dict[str, Any]): Parameters for scope resolution.
 
         Returns:
-            _CacheKey: Composite cache key
+            CacheKey: The complete cache key.
         """
         prefix = self._build_scope_prefix(scope, params)
         return self._compose_cache_key(prefix, "__programmatic__", (key,))
@@ -168,14 +174,17 @@ class Cache:
     def cache(
         self, ttl_seconds: Union[int, float], scope: _CacheScope = "global"
     ) -> Callable[[Callable[P, T]], Callable[P, T]]:
-        """Decorator for caching function results.
+        """Decorator Factory to cache function results based on arguments and scope.
+
+        Automatically detects if the decorated function is synchronous or asynchronous (coroutine)
+        and applies the appropriate wrapper, maintaining type compatibility.
 
         Args:
-            ttl_seconds (Union[int, float]): Time-to-live in seconds
-            scope (_CacheScope): Cache scope (default: "global")
+            ttl_seconds (Union[int, float]): Cache time-to-live in seconds.
+            scope (_CacheScope, optional): The scope level (e.g., "user", "global"). Defaults to "global".
 
         Returns:
-            Callable: Decorator function
+            Callable[[Callable[P, T]], Callable[P, T]]: The configured decorator.
         """
 
         def decorator(func: Callable[P, T]) -> Callable[P, T]:
@@ -189,15 +198,15 @@ class Cache:
         return decorator
 
     def _create_sync_wrapper(self, func: Callable[P, T], ttl_seconds: Union[int, float], scope: _CacheScope) -> Callable[P, T]:
-        """Creates synchronous cache wrapper.
+        """Creates a wrapper for synchronous (blocking) functions.
 
         Args:
-            func (Callable[P, T]): Function to wrap
-            ttl_seconds (Union[int, float]): Time-to-live
-            scope (_CacheScope): Cache scope
+            func (Callable[P, T]): The original function.
+            ttl_seconds (Union[int, float]): TTL.
+            scope (_CacheScope): Scope.
 
         Returns:
-            Callable[P, T]: Wrapped function
+            Callable[P, T]: Wrapper with caching logic.
         """
 
         @wraps(func)
@@ -222,15 +231,15 @@ class Cache:
     def _create_async_wrapper(
         self, func: Callable[P, T], ttl_seconds: Union[int, float], scope: _CacheScope
     ) -> Callable[P, T]:
-        """Creates asynchronous cache wrapper.
+        """Creates a wrapper for asynchronous functions (coroutines).
 
         Args:
-            func (Callable[P, T]): Async function to wrap
-            ttl_seconds (Union[int, float]): Time-to-live
-            scope (_CacheScope): Cache scope
+            func (Callable[P, T]): The original coroutine.
+            ttl_seconds (Union[int, float]): TTL.
+            scope (_CacheScope): Scope.
 
         Returns:
-            Callable[P, T]: Wrapped async function
+            Callable[P, T]: Async wrapper with caching logic.
         """
 
         @wraps(func)
@@ -255,20 +264,19 @@ class Cache:
     def get(
         self, key: Any, scope: _CacheScope = "global", scope_params: Optional[Dict[str, Any]] = None, **kwargs: Any
     ) -> Optional[Any]:
-        """Gets cached value.
+        """Retrieves a value from the cache manually (programmatic access).
 
         Args:
-            key (Any): Cache key
-            scope (_CacheScope): Cache scope (default: "global")
-            scope_params (Optional[Dict[str, Any]]): Scope parameters as dict (e.g., {"org_id": "org_123"})
-            **kwargs: Scope parameters as kwargs (e.g., org_id="org_123"). Merged with scope_params.
+            key (Any): The unique identifier of the data (e.g., "my_key").
+            scope (_CacheScope): Cache scope (default: "global").
+            scope_params (Optional[Dict[str, Any]]): Dict of parameters to resolve the scope.
+            **kwargs: Scope parameters as kwargs (merged with scope_params).
 
         Returns:
-            Optional[Any]: Cached value or None
+            Optional[Any]: Cached value or None.
 
         Examples:
-            >>> cache.get("key", scope="user", org_id="org_123", user_id="user_456")
-            >>> cache.get("key", scope="user", scope_params={"org_id": "org_123", "user_id": "user_456"})
+            >>> cache.get("user_data", scope="user", user_id="456")
         """
         params = {**(scope_params or {}), **kwargs}
         cache_key = self._make_programmatic_key(key, scope, params)
@@ -283,22 +291,15 @@ class Cache:
         scope_params: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
     ) -> None:
-        """Sets cached value.
+        """Sets a value in the cache manually.
 
         Args:
-            key (Any): Cache key
-            value (Any): Value to cache
-            ttl_seconds (Union[int, float]): Time-to-live in seconds
-            scope (_CacheScope): Cache scope (default: "global")
-            scope_params (Optional[Dict[str, Any]]): Scope parameters as dict (e.g., {"org_id": "org_123"})
-            **kwargs: Scope parameters as kwargs (e.g., org_id="org_123"). Merged with scope_params.
-
-        Raises:
-            Exception: If storage operation fails
-
-        Examples:
-            >>> cache.set("key", "value", 60, scope="user", org_id="org_123", user_id="user_456")
-            >>> cache.set("key", "value", 60, scope="user", scope_params={"org_id": "org_123", "user_id": "user_456"})
+            key (Any): The unique identifier.
+            value (Any): The data to be cached.
+            ttl_seconds (Union[int, float]): TTL in seconds.
+            scope (_CacheScope): Scope (default: "global").
+            scope_params (Optional[Dict[str, Any]]): Dict of scope parameters.
+            **kwargs: Scope parameters as kwargs.
         """
         params = {**(scope_params or {}), **kwargs}
         cache_key = self._make_programmatic_key(key, scope, params)
@@ -307,51 +308,40 @@ class Cache:
     def evict(
         self, key: Any, scope: _CacheScope = "global", scope_params: Optional[Dict[str, Any]] = None, **kwargs: Any
     ) -> None:
-        """Evicts cached value.
+        """Manually removes an item from the cache.
 
         Args:
-            key (Any): Cache key
-            scope (_CacheScope): Cache scope (default: "global")
-            scope_params (Optional[Dict[str, Any]]): Scope parameters as dict (e.g., {"org_id": "org_123"})
-            **kwargs: Scope parameters as kwargs (e.g., org_id="org_123"). Merged with scope_params.
-
-        Examples:
-            >>> cache.evict("key", scope="user", org_id="org_123", user_id="user_456")
-            >>> cache.evict("key", scope="user", scope_params={"org_id": "org_123", "user_id": "user_456"})
+            key (Any): The identifier of the item to remove.
+            scope (_CacheScope): Scope.
+            scope_params (Optional[Dict[str, Any]]): Dict of scope parameters.
+            **kwargs: Scope parameters as kwargs.
         """
         params = {**(scope_params or {}), **kwargs}
         cache_key = self._make_programmatic_key(key, scope, params)
         self._evict_from_storage(cache_key)
 
     def clear(self) -> None:
-        """Clears entire cache and resets statistics.
-
-        Raises:
-            Exception: If storage operation fails
-        """
+        """Clears the ENTIRE cache storage and resets internal statistics."""
         self._storage.clear()
         self._hits = 0
         self._misses = 0
         self._evictions = 0
-        logging.warning("Cache cleared")
+        logging.warning("Cache cleared completely")
 
     async def aget(
         self, key: Any, scope: _CacheScope = "global", scope_params: Optional[Dict[str, Any]] = None, **kwargs: Any
     ) -> Optional[Any]:
-        """Asynchronously gets cached value.
+        """Asynchronous version (non-blocking) of `get`. Delegates execution of the synchronous `get` method to
+        a separate thread, ensuring the asyncio Event Loop is not blocked by storage I/O.
 
         Args:
-            key (Any): Cache key
-            scope (_CacheScope): Cache scope (default: "global")
-            scope_params (Optional[Dict[str, Any]]): Scope parameters as dict (e.g., {"org_id": "org_123"})
-            **kwargs: Scope parameters as kwargs (e.g., org_id="org_123"). Merged with scope_params.
+            key (Any): Identifier.
+            scope (_CacheScope): Scope.
+            scope_params (Optional[Dict[str, Any]]): Scope parameters.
+            **kwargs: Scope kwargs.
 
         Returns:
-            Optional[Any]: Cached value or None
-
-        Examples:
-            >>> await cache.aget("key", scope="user", org_id="org_123", user_id="user_456")
-            >>> await cache.aget("key", scope="user", scope_params={"org_id": "org_123", "user_id": "user_456"})
+            Optional[Any]: Value or None.
         """
         return await asyncio.to_thread(self.get, key, scope, scope_params, **kwargs)
 
@@ -364,48 +354,41 @@ class Cache:
         scope_params: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
     ) -> None:
-        """Asynchronously sets cached value.
+        """Asynchronous version (non-blocking) of `set`. Executes the write to storage in a separate thread.
 
         Args:
-            key (Any): Cache key
-            value (Any): Value to cache
-            ttl_seconds (Union[int, float]): Time-to-live in seconds
-            scope (_CacheScope): Cache scope (default: "global")
-            scope_params (Optional[Dict[str, Any]]): Scope parameters as dict (e.g., {"org_id": "org_123"})
-            **kwargs: Scope parameters as kwargs (e.g., org_id="org_123"). Merged with scope_params.
-
-        Examples:
-            >>> await cache.aset("key", "value", 60, scope="user", org_id="org_123", user_id="user_456")
-            >>> await cache.aset("key", "value", 60, scope="user", scope_params={"org_id": "org_123", "user_id": "user_456"})
+            key (Any): Identifier.
+            value (Any): Value.
+            ttl_seconds (Union[int, float]): TTL.
+            scope (_CacheScope): Scope.
+            scope_params (Optional[Dict[str, Any]]): Scope parameters.
+            **kwargs: Scope kwargs.
         """
         await asyncio.to_thread(self.set, key, value, ttl_seconds, scope, scope_params, **kwargs)
 
     async def aevict(
         self, key: Any, scope: _CacheScope = "global", scope_params: Optional[Dict[str, Any]] = None, **kwargs: Any
     ) -> None:
-        """Asynchronously evicts cached value.
+        """Asynchronous version (non-blocking) of `evict`.
 
         Args:
-            key (Any): Cache key
-            scope (_CacheScope): Cache scope (default: "global")
-            scope_params (Optional[Dict[str, Any]]): Scope parameters as dict (e.g., {"org_id": "org_123"})
-            **kwargs: Scope parameters as kwargs (e.g., org_id="org_123"). Merged with scope_params.
-
-        Examples:
-            >>> await cache.aevict("key", scope="user", org_id="org_123", user_id="user_456")
-            >>> await cache.aevict("key", scope="user", scope_params={"org_id": "org_123", "user_id": "user_456"})
+            key (Any): Identifier.
+            scope (_CacheScope): Scope.
+            scope_params (Optional[Dict[str, Any]]): Scope parameters.
+            **kwargs: Scope kwargs.
         """
         await asyncio.to_thread(self.evict, key, scope, scope_params, **kwargs)
 
     async def aclear(self) -> None:
-        """Asynchronously clears entire cache."""
+        """Asynchronous version (non-blocking) of `clear`."""
         await asyncio.to_thread(self.clear)
 
     def stats(self) -> Dict[str, Any]:
-        """Returns cache statistics.
+        """Returns cache usage statistics. Combines internal metrics (hits/misses in object memory) with statistics
+        reported by the storage backend.
 
         Returns:
-            Dict[str, Any]: Statistics including hits, misses, evictions, and storage-specific stats
+            Dict[str, Any]: Dict containing keys like 'hits', 'misses', 'evictions'.
         """
         stats = {
             "hits": self._hits,
@@ -416,26 +399,21 @@ class Cache:
         return stats
 
     def evict_by_scope(self, scope: _CacheScope, scope_params: Optional[Dict[str, Any]] = None, **kwargs: Any) -> int:
-        """Evicts all items in scope.
+        """Evicts all cache items belonging to a specific scope hierarchy.
 
         Args:
-            scope (_CacheScope): Scope to evict
-            scope_params (Optional[Dict[str, Any]]): Scope parameters as dict (e.g., {"org_id": "org_123"})
-            **kwargs: Scope parameters as kwargs (e.g., org_id="org_123"). Merged with scope_params.
+            scope (_CacheScope): The target scope to clear.
+            scope_params (Optional[Dict[str, Any]]): Parameters to resolve the scope prefix.
+            **kwargs: Additional parameters.
 
         Returns:
-            int: Number of items evicted
-
-        Examples:
-            >>> cache.evict_by_scope("organization", org_id="org_123")
-            >>> cache.evict_by_scope("user", org_id="org_123", user_id="user_456")
-            >>> cache.evict_by_scope("organization", scope_params={"org_id": "org_123"})
+            int: Number of items removed.
         """
         params = {**(scope_params or {}), **kwargs}
         try:
             prefix = self._build_scope_prefix(scope, params)
         except ValueError as e:
-            logging.error(f"Invalid scope: {e}")
+            logging.error(f"Invalid scope for eviction: {e}")
             return 0
 
         count = 0
@@ -449,22 +427,3 @@ class Cache:
             logging.warning(f"Evicted {count} items from scope {prefix}")
 
         return count
-
-
-def create_cache(
-    backend: Optional[IStorageProvider] = None,
-    scope_config: Optional[ScopeConfig] = None,
-) -> Cache:
-    """Creates and configures cache instance.
-
-    Args:
-        backend (Optional[IStorageProvider]): Storage backend (default: InMemory())
-        scope_config (Optional[ScopeConfig]): Scope configuration (default: ScopeConfig())
-
-    Returns:
-        Cache: Configured cache instance
-    """
-    return Cache(
-        backend=backend or InMemory(),
-        scope_config=scope_config or ScopeConfig(),
-    )
