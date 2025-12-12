@@ -7,13 +7,10 @@ thread-safe operations, and cache stampede protection.
 Storages are fully responsible for their own eviction policies and TTL management.
 """
 
-from .cache import Cache, create_cache
-from .cache_scope_config import ScopeConfig, ScopeLevel
-from .cache_types import CacheKey, _CacheScope, _CacheValue
+from .cache import Cache
 from .storages.in_memory import InMemory
-from .storages.memcached_storage import MemcachedStorage
-from .storages.mongodb_storage import MongoDBStorage
-from .storages.redis_storage import RedisStorage
+from .utils.cache_scope_config import ScopeConfig, ScopeLevel
+from .utils.cache_types import CacheKey, _CacheScope, _CacheValue
 
 __version__ = "2.0.0"
 
@@ -21,9 +18,6 @@ __all__ = [
     "Cache",
     "create_cache",
     "InMemory",
-    "RedisStorage",
-    "MongoDBStorage",
-    "MemcachedStorage",
     "ScopeConfig",
     "ScopeLevel",
     "CacheKey",
