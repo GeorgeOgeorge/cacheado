@@ -2,14 +2,16 @@ import asyncio
 import logging
 import pickle
 from functools import wraps
-from typing import Any, Callable, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, Optional, Tuple, Union
 
 from typing_extensions import ParamSpec, TypeVar
 
-from cache_scope_config import ScopeConfig
-from cache_types import CacheKey, _CacheScope
 from protocols.storage_provider import IStorageProvider
+from protocols.storage_rule import IStorageRule
 from storages.in_memory import InMemory
+from storages.rule_aware_storage import RuleAwareStorage
+from utils.cache_scope_config import ScopeConfig
+from utils.cache_types import CacheKey, _CacheScope
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -21,6 +23,7 @@ class Cache:
     Attributes:
         _storage (IStorageProvider): The storage backend (Redis, Memcached, Memory, etc.).
         _scope_config (ScopeConfig): Configuration rules for scope-based key resolution.
+        _storage_rules (Tuple[IStorageRule, ...]): Optional storage rules for side effects.
         _hits (int): Counter for cache hits (for telemetry).
         _misses (int): Counter for cache misses (for telemetry).
         _evictions (int): Counter for manual evictions (for telemetry).
@@ -30,8 +33,9 @@ class Cache:
 
     def __init__(
         self,
-        storage_provider: Optional[IStorageProvider] = None,
         scope_config: Optional[ScopeConfig] = None,
+        storage_provider: Optional[IStorageProvider] = None,
+        storage_rules: Optional[Iterable[IStorageRule]] = None,
     ) -> None:
         """Initializes the Cache manager with Dependency Injection.
 
@@ -40,8 +44,11 @@ class Cache:
                 If None, uses `InMemory`.
             scope_config (Optional[ScopeConfig]): Configuration for dynamic scope resolution.
                 If None, uses the default configuration.
+            storage_rules (Optional[Iterable[IStorageRule, ...]]): Optional storage rules for side effects.
         """
-        self._storage = storage_provider or InMemory()
+        _provider = storage_provider or InMemory()
+
+        self._storage = RuleAwareStorage(_provider, storage_rules) if storage_rules else _provider
         self._scope_config = scope_config or ScopeConfig()
         self._hits: int = 0
         self._misses: int = 0
