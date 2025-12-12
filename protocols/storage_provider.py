@@ -1,6 +1,6 @@
 from typing import Any, List, Optional, Protocol, Union
 
-from cache_types import _CacheValue
+from utils.cache_types import _CacheValue
 
 
 class IStorageProvider(Protocol):

@@ -1,13 +1,13 @@
 from typing import Any, Optional, Protocol, Union
 
-from cache_types import RuleSideEffect
+from utils.cache_types import RuleSideEffect
 
 
 class IStorageRule(Protocol):
     """
     Defines the contract for storage rules.
-    
-    Uses structural typing (Protocol) to allow any class implementing these 
+
+    Uses structural typing (Protocol) to allow any class implementing these
     methods to be treated as a valid rule, without explicit inheritance.
     """
 
@@ -19,8 +19,8 @@ class IStorageRule(Protocol):
             key (str): The unique key being accessed in storage.
 
         Returns:
-            Optional[RuleSideEffect]: An optional side effect to be applied 
-            (e.g., deny access, force expiration), or None if the operation 
+            Optional[RuleSideEffect]: An optional side effect to be applied
+            (e.g., deny access, force expiration), or None if the operation
             should proceed normally.
         """
         ...
@@ -40,7 +40,7 @@ class IStorageRule(Protocol):
         """
         ...
 
-    def on_evict(self, key: str) -> Optional[RuleSideEffect]: 
+    def on_evict(self, key: str) -> Optional[RuleSideEffect]:
         """
         Executed when a key is evicted from storage, either by TTL expiration or explicit removal.
 
@@ -53,7 +53,7 @@ class IStorageRule(Protocol):
         """
         ...
 
-    def on_clear(self) -> Optional[RuleSideEffect]: 
+    def on_clear(self) -> Optional[RuleSideEffect]:
         """
         Executed when the entire storage is cleared (flush/clear).
 
@@ -62,7 +62,7 @@ class IStorageRule(Protocol):
         """
         ...
 
-    def on_get_all_keys(self) -> Optional[RuleSideEffect]: 
+    def on_get_all_keys(self) -> Optional[RuleSideEffect]:
         """
         Executed when a listing of all keys is requested.
 
