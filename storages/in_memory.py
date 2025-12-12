@@ -1,8 +1,8 @@
 import time
 from typing import Any, Dict, List, Optional, Union
 
-from cache_types import _CacheValue
 from protocols.storage_provider import IStorageProvider
+from utils.cache_types import _CacheValue
 
 
 class InMemory(IStorageProvider):
