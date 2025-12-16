@@ -2,31 +2,42 @@
 Hierarchical Multi-Tenant Cache System
 
 An advanced Python cache system with support for scope hierarchies,
-configurable eviction policies, thread-safe operations, and cache stampede protection.
+thread-safe operations, and cache stampede protection.
+
+Storages are fully responsible for their own eviction policies and TTL management.
 """
 
-from .cache import Cache, create_cache
-from .cache_policies.cache_policy_manager import CachePolicyManager
-from .cache_scopes.scope_config import ScopeConfig, ScopeLevel
-from .cache_types import _CacheKey, _CacheScope, _CacheValue
-from .eviction_policies.lre_eviction import LRUEvictionPolicy
+from .cache import Cache
+from .protocols.storage_provider import IStorageProvider
+from .protocols.storage_rule import IStorageRule
 from .storages.in_memory import InMemory
-from .storages.mongodb_storage import MongoDBStorage
-from .storages.redis_storage import RedisStorage
+from .storages.mongodb import MongoDBStorage
+from .storages.redis import RedisStorage
+from .storages.rule_aware_storage import RuleAwareStorage
+from .storages.rules.lifetime_evict import LifeTimeEvict
+from .storages.rules.lru_evict import LRUEvict
+from .storages.rules.max_items_evict import MaxItemsEvict
+from .utils.cache_scope_config import ScopeConfig, ScopeLevel
+from .utils.cache_types import CacheKey, RuleSideEffect, StorageRuleAction, _CacheScope, _CacheValue
 
-__version__ = "1.4.1"
+__version__ = "2.0.0"
 
 __all__ = [
     "Cache",
-    "create_cache",
+    "IStorageProvider",
+    "IStorageRule",
     "InMemory",
-    "RedisStorage",
     "MongoDBStorage",
-    "LRUEvictionPolicy",
-    "CachePolicyManager",
+    "RedisStorage",
+    "RuleAwareStorage",
+    "LifeTimeEvict",
+    "LRUEvict",
+    "MaxItemsEvict",
     "ScopeConfig",
     "ScopeLevel",
-    "_CacheKey",
-    "_CacheValue",
+    "CacheKey",
+    "RuleSideEffect",
+    "StorageRuleAction",
     "_CacheScope",
+    "_CacheValue",
 ]

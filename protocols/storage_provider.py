@@ -1,67 +1,128 @@
-from typing import List, Optional, Protocol
+from typing import Any, List, Optional, Protocol, Union
 
-from cache_types import _CacheKey, _CacheValue
+from utils.cache_types import _CacheValue
 
 
 class IStorageProvider(Protocol):
     """
     Interface (Protocol) for all storage backends (e.g., In-Memory, Redis).
-    Implementations MUST be thread-safe for synchronous operations.
+
+    Storage providers are FULLY RESPONSIBLE for:
+    - Data persistence (get/set/evict/clear)
+    - TTL calculation and management (storage-specific)
+    - Eviction policies (LRU, LFU, etc.)
+    - Cleanup mechanisms (background threads, native TTL)
+    - Statistics tracking
+
+    The Cache class only manages:
+    - Public API
+    - Namespace/scope management
+    - Decorator logic
+
+    This follows the principle: "Storage owns its data lifecycle"
     """
 
-    def get(self, key: _CacheKey) -> Optional[_CacheValue]:
+    def set(self, key: str, value: Any, ttl_seconds: Union[int, float]) -> None:
+        """
+        Sets a value with TTL.
+
+        Args:
+            key: The cache key
+            value: The value to store
+            ttl_seconds: Time-to-live in seconds
+        """
+        ...
+
+    def get_stats(self) -> dict:
+        """
+        Returns storage-specific statistics.
+
+        Returns:
+            dict: Statistics like current_size, namespace_count, etc.
+        """
+        ...
+
+    def get(self, key: str) -> Optional[_CacheValue]:
         """
         Atomically gets a value tuple (value, expiry) from storage.
 
         Args:
-            key (_CacheKey): The internal key to get.
+            key (str): The internal key to get.
 
         Returns:
             Optional[_CacheValue]: The stored tuple, or None.
         """
         ...
 
-    def get_value_no_lock(self, key: _CacheKey) -> Optional[_CacheValue]:
-        """
-        Performs a non-locking ("dirty") read for the cleanup loop.
-        Only required for backends that support it.
-
-        Args:
-            key (_CacheKey): The internal key to look up.
-
-        Returns:
-            Optional[_CacheValue]: The stored tuple (value, expiry) or None.
-        """
-        ...
-
-    def set(self, key: _CacheKey, value: _CacheValue) -> None:
-        """
-        Atomically sets a value tuple (value, expiry) in storage.
-
-        Args:
-            key (_CacheKey): The internal key to set.
-            value (_CacheValue): The (value, expiry) tuple to store.
-        """
-        ...
-
-    def evict(self, key: _CacheKey) -> None:
+    def evict(self, key: str) -> None:
         """
         Atomically evicts a key from storage.
 
         Args:
-            key (_CacheKey): The internal key to evict.
+            key (str): The internal key to evict.
         """
         ...
 
-    def get_all_keys(self) -> List[_CacheKey]:
+    def get_all_keys(self) -> List[str]:
         """
         Atomically gets a copy of all keys in storage.
 
         Returns:
-            List[_CacheKey]: A list of all cache keys.
+            List[str]: A list of all cache keys.
         """
         ...
 
     def clear(self) -> None:
         """Atomically clears the entire storage."""
+        ...
+
+    async def aget(self, key: str) -> Optional[_CacheValue]:
+        """
+        Asynchronously gets a value tuple (value, expiry) from storage.
+        Non-blocking, allows concurrent operations.
+
+        Args:
+            key (str): The internal key to get.
+
+        Returns:
+            Optional[_CacheValue]: The stored tuple, or None.
+        """
+        ...
+
+    async def aset(self, key: str, value: Any, ttl_seconds: Union[int, float]) -> None:
+        """
+        Asynchronously sets a value with TTL.
+
+        Args:
+            key: The cache key
+            value: The value to store
+            ttl_seconds: Time-to-live in seconds
+        """
+        ...
+
+    async def aevict(self, key: str) -> None:
+        """
+        Asynchronously evicts a key from storage.
+        Non-blocking, allows concurrent operations.
+
+        Args:
+            key (str): The internal key to evict.
+        """
+        ...
+
+    async def aget_all_keys(self) -> List[str]:
+        """
+        Asynchronously gets a copy of all keys in storage.
+        Non-blocking, allows concurrent operations.
+
+        Returns:
+            List[str]: A list of all cache keys.
+        """
+        ...
+
+    async def aclear(self) -> None:
+        """
+        Asynchronously clears the entire storage.
+        Non-blocking, allows concurrent operations.
+        """
         ...
