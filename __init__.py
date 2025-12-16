@@ -26,7 +26,6 @@ __all__ = [
     "Cache",
     "IStorageProvider",
     "IStorageRule",
-    "RuleSideEffect",
     "InMemory",
     "MongoDBStorage",
     "RedisStorage",
