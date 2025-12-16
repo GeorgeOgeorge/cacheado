@@ -112,12 +112,12 @@ class RuleAwareStorage(IStorageProvider):
     async def aget(self, key: str) -> Optional[Any]:
         """Async version of get"""
         val = await self._storage.aget(key)
-        
+
         if val is not None:
             for rule in self._rules:
                 effect = rule.on_get(key)
                 self._apply_side_effects(effect)
-        
+
         return val
 
     async def aevict(self, key: str) -> None:
