@@ -9,7 +9,7 @@ Storages are fully responsible for their own eviction policies and TTL managemen
 
 from .cache import Cache
 from .protocols.storage_provider import IStorageProvider
-from .protocols.storage_rule import IStorageRule, RuleSideEffect
+from .protocols.storage_rule import IStorageRule
 from .storages.in_memory import InMemory
 from .storages.mongodb import MongoDBStorage
 from .storages.redis import RedisStorage
