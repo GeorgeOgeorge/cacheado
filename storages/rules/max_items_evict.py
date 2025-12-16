@@ -62,7 +62,7 @@ class MaxItemsEvict(IStorageRule):
         if key not in self._keys:
             if len(self._keys) >= self._max_items:
                 return RuleSideEffect(cache_key=key, action=StorageRuleAction.EVICT)
-            
+
             self._keys.add(key)
 
         return None
