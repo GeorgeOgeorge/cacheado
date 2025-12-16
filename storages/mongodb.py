@@ -13,7 +13,7 @@ from utils.cache_types import _CacheValue
 
 
 class MongoDBStorage(IStorageProvider):
-    """Persistent storage implementation using MongoDB. Supports synchronous and asynchronous operations 
+    """Persistent storage implementation using MongoDB. Supports synchronous and asynchronous operations
     for flexibility in hybrid contexts.
 
     This class manages dual connections (Sync/Async) to allow usage
@@ -48,7 +48,9 @@ class MongoDBStorage(IStorageProvider):
         self._collection_name = collection_name or "cacheado_cache_collection"
 
         self._sync_client: MongoClient = MongoClient(
-            host=connection_string,event_listeners=event_listeners, **extra_options,
+            host=connection_string,
+            event_listeners=event_listeners,
+            **extra_options,
         )
 
         try:
