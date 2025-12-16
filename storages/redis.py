@@ -3,8 +3,8 @@ import time
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, List, Optional, Union
 
-import aioredis
 import redis
+import redis.asyncio as async_redis
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 from protocols.storage_provider import IStorageProvider
@@ -45,14 +45,14 @@ class RedisStorage(IStorageProvider):
         except RedisConnectionError as e:
             raise ConnectionError(f"Could not connect to Redis server: {e}")
 
-        self._async_client = aioredis.from_url(connection_string, db=db, decode_responses=True, **extra_options)
+        self._async_client: async_redis.Redis = async_redis.from_url(connection_string, db=db, decode_responses=True, **extra_options)  # type: ignore[assignment]
 
     @asynccontextmanager
-    async def get_async_client(self) -> AsyncGenerator[aioredis.Redis, None]:
+    async def get_async_client(self) -> AsyncGenerator[async_redis.Redis, None]:  # type: ignore[type-arg]
         """Context manager to get the asynchronous Redis client.
 
         Yields:
-            aioredis.Redis: The client instance ready for awaitable operations.
+            redis.asyncio.Redis: The client instance ready for awaitable operations.
         """
         try:
             yield self._async_client

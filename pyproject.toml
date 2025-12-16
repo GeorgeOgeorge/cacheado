@@ -27,10 +27,10 @@ classifiers = [
 
 [project.optional-dependencies]
 # Cache backends dependencies
-redis = ["aioredis>=2.0.1", "redis>=7.0.1"]
+redis = ["redis[asyncio]>=5.0.0"]
 memcached = ["pymemcache>=4.0.0"]
 mongodb = ["pymongo>=4.10.1"]
-all = ["aioredis>=2.0.1", "redis>=7.0.1", "pymemcache>=4.0.0", "pymongo>=4.10.1"]
+all = ["redis[asyncio]>=5.0.0", "pymemcache>=4.0.0", "pymongo>=4.10.1"]
 # Developer dependencies
 dev = [
   "pytest>=7.0.0",

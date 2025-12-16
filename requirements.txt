@@ -1,6 +1,5 @@
 # Core dependencies
-aioredis>=2.0.1
-redis>=7.0.1
+redis[asyncio]>=5.0.0
 pymongo>=4.10.1
 pymemcache>=4.0.0
 

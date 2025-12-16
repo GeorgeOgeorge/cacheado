@@ -7,8 +7,8 @@ from storages.redis import RedisStorage
 
 class TestRedisStorage(unittest.TestCase):
     @patch("storages.redis.redis.from_url")
-    @patch("storages.redis.aioredis.from_url")
-    def test_init(self, mock_aioredis, mock_redis):
+    @patch("storages.redis.async_redis.from_url")
+    def test_init(self, mock_async_redis, mock_redis):
         mock_client = MagicMock()
         mock_client.ping.return_value = True
         mock_redis.return_value = mock_client
@@ -18,8 +18,8 @@ class TestRedisStorage(unittest.TestCase):
         mock_client.ping.assert_called_once()
 
     @patch("storages.redis.redis.from_url")
-    @patch("storages.redis.aioredis.from_url")
-    def test_init_connection_error(self, mock_aioredis, mock_redis):
+    @patch("storages.redis.async_redis.from_url")
+    def test_init_connection_error(self, mock_async_redis, mock_redis):
         from redis.exceptions import ConnectionError as RedisConnectionError
 
         mock_client = MagicMock()
@@ -30,8 +30,8 @@ class TestRedisStorage(unittest.TestCase):
             RedisStorage("redis://localhost:6379")
 
     @patch("storages.redis.redis.from_url")
-    @patch("storages.redis.aioredis.from_url")
-    def test_set(self, mock_aioredis, mock_redis):
+    @patch("storages.redis.async_redis.from_url")
+    def test_set(self, mock_async_redis, mock_redis):
         mock_client = MagicMock()
         mock_client.ping.return_value = True
         mock_redis.return_value = mock_client
@@ -42,8 +42,8 @@ class TestRedisStorage(unittest.TestCase):
         mock_client.set.assert_called_once()
 
     @patch("storages.redis.redis.from_url")
-    @patch("storages.redis.aioredis.from_url")
-    def test_get(self, mock_aioredis, mock_redis):
+    @patch("storages.redis.async_redis.from_url")
+    def test_get(self, mock_async_redis, mock_redis):
         mock_client = MagicMock()
         mock_client.ping.return_value = True
         mock_client.get.return_value = '{"value": "value1", "ttl_seconds": 100.0}'
@@ -56,8 +56,8 @@ class TestRedisStorage(unittest.TestCase):
         self.assertEqual(result[0], "value1")
 
     @patch("storages.redis.redis.from_url")
-    @patch("storages.redis.aioredis.from_url")
-    def test_get_none(self, mock_aioredis, mock_redis):
+    @patch("storages.redis.async_redis.from_url")
+    def test_get_none(self, mock_async_redis, mock_redis):
         mock_client = MagicMock()
         mock_client.ping.return_value = True
         mock_client.get.return_value = None
@@ -69,8 +69,8 @@ class TestRedisStorage(unittest.TestCase):
         self.assertIsNone(result)
 
     @patch("storages.redis.redis.from_url")
-    @patch("storages.redis.aioredis.from_url")
-    def test_evict(self, mock_aioredis, mock_redis):
+    @patch("storages.redis.async_redis.from_url")
+    def test_evict(self, mock_async_redis, mock_redis):
         mock_client = MagicMock()
         mock_client.ping.return_value = True
         mock_redis.return_value = mock_client
@@ -81,8 +81,8 @@ class TestRedisStorage(unittest.TestCase):
         mock_client.delete.assert_called_once_with("key1")
 
     @patch("storages.redis.redis.from_url")
-    @patch("storages.redis.aioredis.from_url")
-    def test_get_all_keys(self, mock_aioredis, mock_redis):
+    @patch("storages.redis.async_redis.from_url")
+    def test_get_all_keys(self, mock_async_redis, mock_redis):
         mock_client = MagicMock()
         mock_client.ping.return_value = True
         mock_client.keys.return_value = ["key1", "key2"]
@@ -95,8 +95,8 @@ class TestRedisStorage(unittest.TestCase):
         self.assertIn("key1", keys)
 
     @patch("storages.redis.redis.from_url")
-    @patch("storages.redis.aioredis.from_url")
-    def test_clear(self, mock_aioredis, mock_redis):
+    @patch("storages.redis.async_redis.from_url")
+    def test_clear(self, mock_async_redis, mock_redis):
         mock_client = MagicMock()
         mock_client.ping.return_value = True
         mock_redis.return_value = mock_client
@@ -107,8 +107,8 @@ class TestRedisStorage(unittest.TestCase):
         mock_client.flushdb.assert_called_once()
 
     @patch("storages.redis.redis.from_url")
-    @patch("storages.redis.aioredis.from_url")
-    def test_get_sync_client(self, mock_aioredis, mock_redis):
+    @patch("storages.redis.async_redis.from_url")
+    def test_get_sync_client(self, mock_async_redis, mock_redis):
         mock_client = MagicMock()
         mock_client.ping.return_value = True
         mock_redis.return_value = mock_client
@@ -121,15 +121,15 @@ class TestRedisStorage(unittest.TestCase):
 
 class TestRedisStorageAsync(IsolatedAsyncioTestCase):
     @patch("storages.redis.redis.from_url")
-    @patch("storages.redis.aioredis.from_url")
-    async def test_aget(self, mock_aioredis, mock_redis):
+    @patch("storages.redis.async_redis.from_url")
+    async def test_aget(self, mock_async_redis, mock_redis):
         mock_sync_client = MagicMock()
         mock_sync_client.ping.return_value = True
         mock_redis.return_value = mock_sync_client
 
         mock_async_client = AsyncMock()
         mock_async_client.get.return_value = '{"value": "value1", "ttl_seconds": 100.0}'
-        mock_aioredis.return_value = mock_async_client
+        mock_async_redis.return_value = mock_async_client
 
         storage = RedisStorage("redis://localhost:6379")
         result = await storage.aget("key1")
@@ -138,15 +138,15 @@ class TestRedisStorageAsync(IsolatedAsyncioTestCase):
         self.assertEqual(result[0], "value1")
 
     @patch("storages.redis.redis.from_url")
-    @patch("storages.redis.aioredis.from_url")
-    async def test_aget_none(self, mock_aioredis, mock_redis):
+    @patch("storages.redis.async_redis.from_url")
+    async def test_aget_none(self, mock_async_redis, mock_redis):
         mock_sync_client = MagicMock()
         mock_sync_client.ping.return_value = True
         mock_redis.return_value = mock_sync_client
 
         mock_async_client = AsyncMock()
         mock_async_client.get.return_value = None
-        mock_aioredis.return_value = mock_async_client
+        mock_async_redis.return_value = mock_async_client
 
         storage = RedisStorage("redis://localhost:6379")
         result = await storage.aget("key1")
@@ -154,14 +154,14 @@ class TestRedisStorageAsync(IsolatedAsyncioTestCase):
         self.assertIsNone(result)
 
     @patch("storages.redis.redis.from_url")
-    @patch("storages.redis.aioredis.from_url")
-    async def test_aset(self, mock_aioredis, mock_redis):
+    @patch("storages.redis.async_redis.from_url")
+    async def test_aset(self, mock_async_redis, mock_redis):
         mock_sync_client = MagicMock()
         mock_sync_client.ping.return_value = True
         mock_redis.return_value = mock_sync_client
 
         mock_async_client = AsyncMock()
-        mock_aioredis.return_value = mock_async_client
+        mock_async_redis.return_value = mock_async_client
 
         storage = RedisStorage("redis://localhost:6379")
         await storage.aset("key1", "value1", 10)
@@ -169,14 +169,14 @@ class TestRedisStorageAsync(IsolatedAsyncioTestCase):
         mock_async_client.set.assert_called_once()
 
     @patch("storages.redis.redis.from_url")
-    @patch("storages.redis.aioredis.from_url")
-    async def test_aevict(self, mock_aioredis, mock_redis):
+    @patch("storages.redis.async_redis.from_url")
+    async def test_aevict(self, mock_async_redis, mock_redis):
         mock_sync_client = MagicMock()
         mock_sync_client.ping.return_value = True
         mock_redis.return_value = mock_sync_client
 
         mock_async_client = AsyncMock()
-        mock_aioredis.return_value = mock_async_client
+        mock_async_redis.return_value = mock_async_client
 
         storage = RedisStorage("redis://localhost:6379")
         await storage.aevict("key1")
@@ -184,15 +184,15 @@ class TestRedisStorageAsync(IsolatedAsyncioTestCase):
         mock_async_client.delete.assert_called_once()
 
     @patch("storages.redis.redis.from_url")
-    @patch("storages.redis.aioredis.from_url")
-    async def test_aget_all_keys(self, mock_aioredis, mock_redis):
+    @patch("storages.redis.async_redis.from_url")
+    async def test_aget_all_keys(self, mock_async_redis, mock_redis):
         mock_sync_client = MagicMock()
         mock_sync_client.ping.return_value = True
         mock_redis.return_value = mock_sync_client
 
         mock_async_client = AsyncMock()
         mock_async_client.keys.return_value = ["key1", "key2"]
-        mock_aioredis.return_value = mock_async_client
+        mock_async_redis.return_value = mock_async_client
 
         storage = RedisStorage("redis://localhost:6379")
         keys = await storage.aget_all_keys()
@@ -201,14 +201,14 @@ class TestRedisStorageAsync(IsolatedAsyncioTestCase):
         self.assertIn("key1", keys)
 
     @patch("storages.redis.redis.from_url")
-    @patch("storages.redis.aioredis.from_url")
-    async def test_aclear(self, mock_aioredis, mock_redis):
+    @patch("storages.redis.async_redis.from_url")
+    async def test_aclear(self, mock_async_redis, mock_redis):
         mock_sync_client = MagicMock()
         mock_sync_client.ping.return_value = True
         mock_redis.return_value = mock_sync_client
 
         mock_async_client = AsyncMock()
-        mock_aioredis.return_value = mock_async_client
+        mock_async_redis.return_value = mock_async_client
 
         storage = RedisStorage("redis://localhost:6379")
         await storage.aclear()
@@ -216,14 +216,14 @@ class TestRedisStorageAsync(IsolatedAsyncioTestCase):
         mock_async_client.flushdb.assert_called_once()
 
     @patch("storages.redis.redis.from_url")
-    @patch("storages.redis.aioredis.from_url")
-    async def test_get_async_client(self, mock_aioredis, mock_redis):
+    @patch("storages.redis.async_redis.from_url")
+    async def test_get_async_client(self, mock_async_redis, mock_redis):
         mock_sync_client = MagicMock()
         mock_sync_client.ping.return_value = True
         mock_redis.return_value = mock_sync_client
 
         mock_async_client = AsyncMock()
-        mock_aioredis.return_value = mock_async_client
+        mock_async_redis.return_value = mock_async_client
 
         storage = RedisStorage("redis://localhost:6379")
         async with storage.get_async_client() as client:
