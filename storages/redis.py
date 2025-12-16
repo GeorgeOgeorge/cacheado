@@ -45,7 +45,9 @@ class RedisStorage(IStorageProvider):
         except RedisConnectionError as e:
             raise ConnectionError(f"Could not connect to Redis server: {e}")
 
-        self._async_client: async_redis.Redis = async_redis.from_url(connection_string, db=db, decode_responses=True, **extra_options)  # type: ignore[assignment]
+        self._async_client: async_redis.Redis = async_redis.from_url(
+            connection_string, db=db, decode_responses=True, **extra_options
+        )  # type: ignore[assignment]
 
     @asynccontextmanager
     async def get_async_client(self) -> AsyncGenerator[async_redis.Redis, None]:  # type: ignore[type-arg]
