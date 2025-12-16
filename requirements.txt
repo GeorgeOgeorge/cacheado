@@ -1,5 +1,5 @@
 # Core dependencies
-redis>=4.0.0
+redis[asyncio]>=5.0.0
 pymongo>=4.10.1
 pymemcache>=4.0.0
 

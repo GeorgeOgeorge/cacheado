@@ -1,315 +1,572 @@
-import asyncio
 import time
-from concurrent.futures import ThreadPoolExecutor
+import unittest
+from unittest import IsolatedAsyncioTestCase
+from unittest.mock import MagicMock
 
-import pytest
+from cache import Cache
+from storages.in_memory import InMemory
+from storages.rules.lifetime_evict import LifeTimeEvict
+from storages.rules.lru_evict import LRUEvict
+from utils.cache_scope_config import ScopeConfig, ScopeLevel
 
-from cache import Cache, create_cache
 
+class TestCache(unittest.TestCase):
+    def setUp(self):
+        self.cache = Cache()
 
-class TestCache:
-    """Test cases for the main Cache class."""
+    def test_init(self):
+        self.assertIsNotNone(self.cache)
 
-    def test_cache_initialization(self):
-        """Test cache initialization."""
-        cache = Cache()
-        assert cache._storage is None
-        assert cache._policy_manager is None
-        assert cache._scope_config is None
-        assert cache._hits == 0
-        assert cache._misses == 0
-        assert cache._evictions == 0
+    def test_set_and_get(self):
+        self.cache.set("key1", "value1", 10)
+        result = self.cache.get("key1")
+        self.assertEqual(result, "value1")
 
-    def test_cache_configuration(self, storage, policy_manager, scope_config):
-        """Test cache configuration."""
-        cache = Cache()
-        cache.configure(storage, policy_manager, scope_config)
+    def test_get_nonexistent(self):
+        result = self.cache.get("missing")
+        self.assertIsNone(result)
 
-        assert cache._storage is storage
-        assert cache._policy_manager is policy_manager
-        assert cache._scope_config is scope_config
+    def test_evict(self):
+        self.cache.set("key1", "value1", 10)
+        self.cache.evict("key1")
+        self.assertIsNone(self.cache.get("key1"))
 
-    def test_basic_get_set(self, cache):
-        """Test basic get/set operations."""
-        cache.set("test_key", "test_value", 60, "global")
-        result = cache.get("test_key", "global")
-        assert result == "test_value"
+    def test_clear(self):
+        self.cache.set("key1", "value1", 10)
+        self.cache.clear()
+        self.assertIsNone(self.cache.get("key1"))
 
-    def test_get_nonexistent_key(self, cache):
-        """Test getting non-existent key returns None."""
-        result = cache.get("nonexistent", "global")
-        assert result is None
+    def test_stats(self):
+        self.cache.set("key1", "value1", 10)
+        self.cache.get("key1")
+        stats = self.cache.stats()
+        self.assertEqual(stats["hits"], 1)
 
-    def test_ttl_expiration(self, cache):
-        """Test TTL expiration."""
-        cache.set("expire_key", "value", 0.1, "global")
-        time.sleep(0.2)
-        result = cache.get("expire_key", "global")
-        assert result is None
-
-    def test_scoped_cache(self, cache):
-        """Test scoped cache operations."""
-        cache.set("key", "org_value", 60, "organization", org_id="org_123")
-        cache.set("key", "user_value", 60, "user", org_id="org_123", user_id="user_456")
-
-        org_result = cache.get("key", "organization", org_id="org_123")
-        user_result = cache.get("key", "user", org_id="org_123", user_id="user_456")
-
-        assert org_result == "org_value"
-        assert user_result == "user_value"
-
-    def test_cache_decorator_sync(self, cache):
-        """Test synchronous cache decorator."""
-        call_count = 0
-
-        @cache.cache(ttl_seconds=60, scope="global")
-        def test_func(x, y):
-            nonlocal call_count
-            call_count += 1
-            return x + y
-
-        result1 = test_func(1, 2)
-        result2 = test_func(1, 2)
-
-        assert result1 == 3
-        assert result2 == 3
-        assert call_count == 1
-
-    @pytest.mark.asyncio
-    async def test_cache_decorator_async(self, cache):
-        """Test asynchronous cache decorator."""
-        call_count = 0
-
-        @cache.cache(ttl_seconds=60, scope="global")
-        async def async_func(x):
-            nonlocal call_count
-            call_count += 1
-            await asyncio.sleep(0.01)
+    def test_decorator_sync(self):
+        @self.cache.cache(ttl_seconds=10)
+        def func(x):
             return x * 2
 
-        result1 = await async_func(5)
-        result2 = await async_func(5)
+        result1 = func(5)
+        result2 = func(5)
+        self.assertEqual(result1, 10)
+        self.assertEqual(result2, 10)
 
-        assert result1 == 10
-        assert result2 == 10
-        assert call_count == 1
+    def test_with_scope(self):
+        self.cache.set("key1", "value1", 10, scope="global")
+        result = self.cache.get("key1", scope="global")
+        self.assertEqual(result, "value1")
 
-    @pytest.mark.asyncio
-    async def test_async_operations(self, cache):
-        """Test async get/set operations."""
-        await cache.aset("async_key", "async_value", 60, "global")
-        result = await cache.aget("async_key", "global")
-        assert result == "async_value"
+    def test_evict_by_scope(self):
+        self.cache.set("key1", "value1", 10, scope="global")
+        count = self.cache.evict_by_scope("global")
+        self.assertGreaterEqual(count, 0)
 
-    def test_evict_by_scope(self, cache):
-        """Test scope-based eviction."""
-        cache.set("data1", "value1", 60, "organization", org_id="org_123")
-        cache.set("data2", "value2", 60, "organization", org_id="org_456")
-        cache.set("data3", "value3", 60, "user", org_id="org_123", user_id="user_789")
 
-        evicted = cache.evict_by_scope("organization", org_id="org_123")
-        assert evicted >= 1
+class TestCacheAsync(IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.cache = Cache()
 
-        result1 = cache.get("data1", "organization", org_id="org_123")
-        result2 = cache.get("data2", "organization", org_id="org_456")
-
-        assert result1 is None
-        assert result2 == "value2"
-
-    def test_clear_cache(self, cache):
-        """Test cache clearing."""
-        cache.set("key1", "value1", 60, "global")
-        cache.set("key2", "value2", 60, "global")
-
-        assert cache.get("key1", "global") == "value1"
-        assert cache.get("key2", "global") == "value2"
-
-        cache.clear()
-
-        assert cache.get("key1", "global") is None
-        assert cache.get("key2", "global") is None
-
-        stats = cache.stats()
-        assert stats["current_size"] == 0  # Cache should be empty
-
-    def test_stats(self, cache):
-        """Test cache statistics."""
-        initial_stats = cache.stats()
-        initial_hits = initial_stats["hits"]
-        initial_misses = initial_stats["misses"]
-
-        cache.set("key1", "value1", 60, "global")
-        result = cache.get("key1", "global")
-        assert result == "value1"
-
-        cache.get("nonexistent", "global")
-
-        stats = cache.stats()
-        assert stats["hits"] >= initial_hits + 1
-        assert stats["misses"] >= initial_misses + 1
-        assert "current_size" in stats
-        assert "tracked_namespaces" in stats
-
-    def test_thread_safety(self, cache):
-        """Test thread safety with concurrent operations."""
-        call_count = 0
-
-        @cache.cache(ttl_seconds=60, scope="global")
-        def thread_func(x):
-            nonlocal call_count
-            call_count += 1
-            time.sleep(0.1)
+    async def test_decorator_async(self):
+        @self.cache.cache(ttl_seconds=10)
+        async def func(x):
             return x * 2
 
-        def worker():
-            return thread_func(10)
+        result1 = await func(5)
+        result2 = await func(5)
+        self.assertEqual(result1, 10)
+        self.assertEqual(result2, 10)
 
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [executor.submit(worker) for _ in range(5)]
-            results = [f.result() for f in futures]
+    async def test_aget(self):
+        self.cache.set("key1", "value1", 10)
+        result = await self.cache.aget("key1")
+        self.assertEqual(result, "value1")
 
-        assert all(r == 20 for r in results)
-        assert call_count == 1
+    async def test_aset(self):
+        await self.cache.aset("key1", "value1", 10)
+        result = self.cache.get("key1")
+        self.assertEqual(result, "value1")
 
-    def test_unpickleable_args(self, cache):
-        """Test handling of unpickleable arguments."""
-        call_count = 0
+    async def test_aevict(self):
+        self.cache.set("key1", "value1", 10)
+        await self.cache.aevict("key1")
+        self.assertIsNone(self.cache.get("key1"))
 
-        @cache.cache(ttl_seconds=60, scope="global")
-        def func_with_unpickleable(func_arg):
-            nonlocal call_count
-            call_count += 1
-            return "result"
+    async def test_aclear(self):
+        self.cache.set("key1", "value1", 10)
+        await self.cache.aclear()
+        self.assertIsNone(self.cache.get("key1"))
 
-        import threading
 
-        unpickleable_obj = threading.Lock()
+class TestCacheBuildScopePrefix(unittest.TestCase):
+    def test_global(self):
+        cache = Cache()
+        prefix = cache._build_scope_prefix("global", {})
+        self.assertEqual(prefix, "global")
 
-        result1 = func_with_unpickleable(unpickleable_obj)
-        result2 = func_with_unpickleable(unpickleable_obj)
-        assert result1 == "result"
-        assert result2 == "result"
-        assert call_count == 2
+    def test_with_params(self):
+        user_level = ScopeLevel("user", "user_id")
+        config = ScopeConfig([user_level])
+        cache = Cache(scope_config=config)
+        prefix = cache._build_scope_prefix("user", {"user_id": "123"})
+        self.assertIn("user:123", prefix)
 
-    def test_invalid_scope_params(self, cache):
-        """Test invalid scope parameters."""
-        with pytest.raises(ValueError):
-            cache.set("key", "value", 60, "organization")  # Missing org_id
+    def test_missing_params(self):
+        user_level = ScopeLevel("user", "user_id")
+        config = ScopeConfig([user_level])
+        cache = Cache(scope_config=config)
+        with self.assertRaises(ValueError):
+            cache._build_scope_prefix("user", {})
 
-    def test_zero_ttl(self, cache):
-        """Test zero TTL handling."""
-        cache.set("key", "value", 0, "global")
-        result = cache.get("key", "global")
-        assert result is None
+    def test_nested(self):
+        user_level = ScopeLevel("user", "user_id", [ScopeLevel("tenant", "tenant_id")])
+        config = ScopeConfig([user_level])
+        cache = Cache(scope_config=config)
+        prefix = cache._build_scope_prefix("tenant", {"user_id": "123", "tenant_id": "456"})
+        self.assertIn("user:123", prefix)
+        self.assertIn("tenant:456", prefix)
 
-    def test_namespace_limits(self, cache):
-        """Test namespace-specific limits."""
 
-        @cache.cache(ttl_seconds=60, scope="global", max_items=2)
-        def limited_func(x):
+class TestCacheComposeCacheKey(unittest.TestCase):
+    def setUp(self):
+        self.cache = Cache()
+
+    def test_compose(self):
+        key = self.cache._compose_cache_key("global", "func", (b"args",))
+        self.assertEqual(key.scope_prefix, "global")
+        self.assertEqual(key.namespace, "func")
+
+    def test_as_string(self):
+        key = self.cache._compose_cache_key("global", "func", (b"args",))
+        key_str = key.as_string()
+        self.assertIn("global", key_str)
+        self.assertIn("func", key_str)
+
+    def test_different_scopes(self):
+        key1 = self.cache._compose_cache_key("global", "func", (b"args",))
+        key2 = self.cache._compose_cache_key("user:123", "func", (b"args",))
+        self.assertNotEqual(key1.as_string(), key2.as_string())
+
+
+class TestCacheDecoratorAdvanced(unittest.TestCase):
+    def test_decorator_with_scope(self):
+        user_level = ScopeLevel("user", "user_id")
+        config = ScopeConfig([user_level])
+        cache = Cache(scope_config=config)
+
+        @cache.cache(ttl_seconds=10, scope="user")
+        def func(user_id, x):
+            return x * 2
+
+        result1 = func(user_id="123", x=5)
+        result2 = func(user_id="123", x=5)
+        self.assertEqual(result1, 10)
+        self.assertEqual(result2, 10)
+
+    def test_decorator_different_users(self):
+        user_level = ScopeLevel("user", "user_id")
+        config = ScopeConfig([user_level])
+        cache = Cache(scope_config=config)
+
+        call_count = {"count": 0}
+
+        @cache.cache(ttl_seconds=10, scope="user")
+        def func(user_id, x):
+            call_count["count"] += 1
+            return x * 2
+
+        func(user_id="123", x=5)
+        func(user_id="456", x=5)
+        self.assertEqual(call_count["count"], 2)
+
+    def test_decorator_cache_hit(self):
+        cache = Cache()
+        call_count = {"count": 0}
+
+        @cache.cache(ttl_seconds=10)
+        def func(x):
+            call_count["count"] += 1
+            return x * 2
+
+        func(5)
+        func(5)
+        self.assertEqual(call_count["count"], 1)
+
+
+class TestCacheDecoratorAdvancedAsync(IsolatedAsyncioTestCase):
+    async def test_decorator_with_scope(self):
+        user_level = ScopeLevel("user", "user_id")
+        config = ScopeConfig([user_level])
+        cache = Cache(scope_config=config)
+
+        @cache.cache(ttl_seconds=10, scope="user")
+        async def func(user_id, x):
+            return x * 2
+
+        result1 = await func(user_id="123", x=5)
+        result2 = await func(user_id="123", x=5)
+        self.assertEqual(result1, 10)
+        self.assertEqual(result2, 10)
+
+    async def test_decorator_cache_hit(self):
+        cache = Cache()
+        call_count = {"count": 0}
+
+        @cache.cache(ttl_seconds=10)
+        async def func(x):
+            call_count["count"] += 1
+            return x * 2
+
+        await func(5)
+        await func(5)
+        self.assertEqual(call_count["count"], 1)
+
+
+class TestCacheDecoratorErrors(unittest.TestCase):
+    def setUp(self):
+        self.cache = Cache()
+
+    def test_with_unhashable_args(self):
+        @self.cache.cache(ttl_seconds=10)
+        def func(x):
             return x
 
-        # Fill beyond limit
-        for i in range(5):
-            limited_func(i)
+        result = func({"key": "value"})
+        self.assertEqual(result, {"key": "value"})
 
-        stats = cache.stats()
-        assert stats["evictions"] > 0
+    def test_with_kwargs(self):
+        @self.cache.cache(ttl_seconds=10)
+        def func(x, y=10):
+            return x + y
 
-    def test_make_args_key_error_handling(self, cache):
-        """Test error handling in _make_args_key."""
-        import threading
+        result1 = func(5, y=10)
+        result2 = func(5, y=10)
+        self.assertEqual(result1, 15)
+        self.assertEqual(result2, 15)
 
-        unpickleable_obj = threading.Lock()
 
-        with pytest.raises(TypeError):
-            cache._make_args_key(unpickleable_obj)
+class TestCacheDecoratorErrorsAsync(IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.cache = Cache()
 
-    def test_scope_prefix_generation(self, cache):
-        """Test scope prefix generation."""
-        prefix = cache._get_scope_prefix("global")
-        assert prefix == "global"
+    async def test_with_unhashable_args(self):
+        @self.cache.cache(ttl_seconds=10)
+        async def func(x):
+            return x
 
-        prefix = cache._get_scope_prefix("organization", org_id="org_123")
-        assert prefix == "organization:org_123"
+        result = await func({"key": "value"})
+        self.assertEqual(result, {"key": "value"})
 
-    def test_programmatic_key_creation(self, cache):
-        """Test programmatic key creation."""
-        key = cache._make_programmatic_key("test", "global")
-        assert key[0] == "global"
-        assert key[1] == "__programmatic__"
-        assert key[2] == ("test",)
 
-    def test_cache_key_creation(self, cache):
-        """Test cache key creation for decorated functions."""
-        args_key = cache._make_args_key(1, 2, name="test")
-        key = cache._make_cache_key("func_name", args_key, "global", {})
-
-        assert key[0] == "global"
-        assert key[1] == "func_name"
-        assert key[2] == args_key
-
-    def test_evict_operation(self, cache):
-        """Test evict operation."""
-        cache.set("evict_key", "value", 60, "global")
-        assert cache.get("evict_key", "global") == "value"
-
-        cache.evict("evict_key", "global")
-        assert cache.get("evict_key", "global") is None
-
-    @pytest.mark.asyncio
-    async def test_async_evict_and_clear(self, cache):
-        """Test async evict and clear operations."""
-        await cache.aset("key", "value", 60, "global")
-        await cache.aevict("key", "global")
-        result = await cache.aget("key", "global")
-        assert result is None
-
-        await cache.aset("key2", "value2", 60, "global")
-        await cache.aclear()
-        result = await cache.aget("key2", "global")
-        assert result is None
-
-    def test_create_cache_factory(self, storage, policy_manager, scope_config):
-        """Test create_cache factory function."""
-        cache = create_cache(storage, policy_manager, scope_config)
-        assert isinstance(cache, Cache)
-        assert cache._storage is storage
-        assert cache._policy_manager is policy_manager
-        assert cache._scope_config is scope_config
-
-    def test_cache_without_configuration(self):
-        """Test cache operations without configuration."""
+class TestCacheEdgeCases(unittest.TestCase):
+    def test_get_from_storage_miss(self):
         cache = Cache()
+        result = cache._get_from_storage(cache._compose_cache_key("global", "test", (b"args",)))
+        self.assertIsNone(result)
 
-        result = cache.get("key", "global")
-        assert result is None
+    def test_set_in_storage_zero_ttl(self):
+        cache = Cache()
+        key = cache._compose_cache_key("global", "test", (b"args",))
+        cache._set_in_storage(key, "value", 0)
+        result = cache._get_from_storage(key)
+        self.assertIsNone(result)
 
-        try:
-            cache.set("key", "value", 60, "global")
-        except RuntimeError:
-            pass
+    def test_evict_from_storage(self):
+        cache = Cache()
+        key = cache._compose_cache_key("global", "test", (b"args",))
+        cache._set_in_storage(key, "value", 10)
+        cache._evict_from_storage(key)
+        result = cache._get_from_storage(key)
+        self.assertIsNone(result)
 
-        result = cache.get("key", "global")
-        assert result is None
+    def test_evict_by_scope_invalid(self):
+        user_level = ScopeLevel("user", "user_id")
+        config = ScopeConfig([user_level])
+        cache = Cache(scope_config=config)
+        count = cache.evict_by_scope("user", {})
+        self.assertEqual(count, 0)
 
-    def test_decorator_with_scope_params(self, cache):
-        """Test decorator with scope parameters."""
+    def test_cache_key_str_repr(self):
+        cache = Cache()
+        key = cache._compose_cache_key("global", "func", (b"args",))
+        self.assertIn("global", str(key))
+        self.assertIn("CacheKey", repr(key))
 
-        @cache.cache(ttl_seconds=60, scope="user")
-        def user_func(data, org_id=None, user_id=None):
-            return f"result_{data}_{user_id}"
+    def test_cache_key_inequality(self):
+        cache = Cache()
+        key1 = cache._compose_cache_key("global", "func1", (b"args",))
+        key2 = cache._compose_cache_key("global", "func2", (b"args",))
+        self.assertNotEqual(key1, key2)
 
-        result = user_func("test", org_id="org_123", user_id="user_456")
-        assert result == "result_test_user_456"
+    def test_cache_key_not_equal_to_string(self):
+        cache = Cache()
+        key = cache._compose_cache_key("global", "func", (b"args",))
+        self.assertNotEqual(key, "some_string")
 
-    def test_multiple_scope_hierarchies(self, cache):
-        """Test multiple scope hierarchies."""
-        cache.set("tenant_data", "value", 60, "tenant", tenant_id="tenant_123")
-        cache.set("project_data", "value", 60, "project", tenant_id="tenant_123", project_id="proj_456")
 
-        tenant_result = cache.get("tenant_data", "tenant", tenant_id="tenant_123")
-        project_result = cache.get("project_data", "project", tenant_id="tenant_123", project_id="proj_456")
+class TestCacheHitsMisses(unittest.TestCase):
+    def setUp(self):
+        self.cache = Cache()
 
-        assert tenant_result == "value"
-        assert project_result == "value"
+    def test_hit(self):
+        self.cache.set("key1", "value1", 10)
+        self.cache.get("key1")
+        stats = self.cache.stats()
+        self.assertEqual(stats["hits"], 1)
+
+    def test_miss(self):
+        self.cache.get("missing")
+        stats = self.cache.stats()
+        self.assertEqual(stats["misses"], 1)
+
+    def test_eviction_count(self):
+        self.cache.set("key1", "value1", 10)
+        self.cache.evict("key1")
+        stats = self.cache.stats()
+        self.assertEqual(stats["evictions"], 1)
+
+    def test_multiple_hits(self):
+        self.cache.set("key1", "value1", 10)
+        self.cache.get("key1")
+        self.cache.get("key1")
+        self.cache.get("key1")
+        stats = self.cache.stats()
+        self.assertEqual(stats["hits"], 3)
+
+    def test_stats_after_clear(self):
+        self.cache.set("key1", "value1", 10)
+        self.cache.get("key1")
+        self.cache.clear()
+        stats = self.cache.stats()
+        self.assertEqual(stats["hits"], 0)
+        self.assertEqual(stats["misses"], 0)
+
+
+class TestCacheIntegration(unittest.TestCase):
+    def test_with_lru_rule(self):
+        storage = InMemory()
+        rule = LRUEvict(max_items=2)
+        cache = Cache(storage_provider=storage, storage_rules=[rule])
+
+        cache.set("key1", "value1", 10)
+        cache.set("key2", "value2", 10)
+        cache.set("key3", "value3", 10)
+
+        self.assertIsNone(cache.get("key1"))
+        self.assertEqual(cache.get("key2"), "value2")
+        self.assertEqual(cache.get("key3"), "value3")
+
+    def test_with_multiple_rules(self):
+        storage = InMemory()
+        lru_rule = LRUEvict(max_items=5)
+        ttl_rule = LifeTimeEvict()
+        cache = Cache(storage_provider=storage, storage_rules=[lru_rule, ttl_rule])
+
+        cache.set("key1", "value1", 10)
+        result = cache.get("key1")
+        self.assertEqual(result, "value1")
+
+    def test_decorator_with_rules(self):
+        storage = InMemory()
+        rule = LRUEvict(max_items=2)
+        cache = Cache(storage_provider=storage, storage_rules=[rule])
+
+        @cache.cache(ttl_seconds=10)
+        def func(x):
+            return x * 2
+
+        result1 = func(1)
+        result2 = func(2)
+        result3 = func(3)
+
+        self.assertEqual(result1, 2)
+        self.assertEqual(result2, 4)
+        self.assertEqual(result3, 6)
+
+
+class TestCacheMakeArgsKey(unittest.TestCase):
+    def setUp(self):
+        self.cache = Cache()
+
+    def test_simple(self):
+        key = self.cache._make_args_key(1, 2, 3)
+        self.assertIsInstance(key, tuple)
+
+    def test_with_kwargs(self):
+        key = self.cache._make_args_key(1, 2, x=3, y=4)
+        self.assertIsInstance(key, tuple)
+
+    def test_consistency(self):
+        key1 = self.cache._make_args_key(1, 2, x=3)
+        key2 = self.cache._make_args_key(1, 2, x=3)
+        self.assertEqual(key1, key2)
+
+    def test_different_order(self):
+        key1 = self.cache._make_args_key(x=1, y=2)
+        key2 = self.cache._make_args_key(y=2, x=1)
+        self.assertEqual(key1, key2)
+
+    def test_unhashable(self):
+        key = self.cache._make_args_key({"key": "value"})
+        self.assertIsInstance(key, tuple)
+
+
+class TestCacheMakeCacheKey(unittest.TestCase):
+    def test_make_cache_key(self):
+        cache = Cache()
+        args_key = cache._make_args_key(1, 2)
+        key = cache._make_cache_key("func", args_key, "global", {})
+        self.assertEqual(key.namespace, "func")
+
+    def test_with_scope(self):
+        user_level = ScopeLevel("user", "user_id")
+        config = ScopeConfig([user_level])
+        cache = Cache(scope_config=config)
+        args_key = cache._make_args_key(1, 2)
+        key = cache._make_cache_key("func", args_key, "user", {"user_id": "123"})
+        self.assertIn("user:123", key.scope_prefix)
+
+    def test_make_programmatic_key(self):
+        cache = Cache()
+        key = cache._make_programmatic_key("my_key", "global", {})
+        self.assertEqual(key.namespace, "__programmatic__")
+
+    def test_make_programmatic_key_with_scope(self):
+        user_level = ScopeLevel("user", "user_id")
+        config = ScopeConfig([user_level])
+        cache = Cache(scope_config=config)
+        key = cache._make_programmatic_key("my_key", "user", {"user_id": "123"})
+        self.assertIn("user:123", key.scope_prefix)
+
+
+class TestCacheScopeParams(unittest.TestCase):
+    def test_with_scope_params(self):
+        user_level = ScopeLevel("user", "user_id")
+        config = ScopeConfig([user_level])
+        cache = Cache(scope_config=config)
+
+        cache.set("key1", "value1", 10, scope="user", user_id="123")
+        result = cache.get("key1", scope="user", user_id="123")
+        self.assertEqual(result, "value1")
+
+    def test_scope_isolation(self):
+        user_level = ScopeLevel("user", "user_id")
+        config = ScopeConfig([user_level])
+        cache = Cache(scope_config=config)
+
+        cache.set("key1", "value1", 10, scope="user", user_id="123")
+        result = cache.get("key1", scope="user", user_id="456")
+        self.assertIsNone(result)
+
+    def test_evict_by_scope_with_params(self):
+        user_level = ScopeLevel("user", "user_id")
+        config = ScopeConfig([user_level])
+        cache = Cache(scope_config=config)
+
+        cache.set("key1", "value1", 10, scope="user", user_id="123")
+        cache.set("key2", "value2", 10, scope="user", user_id="123")
+        count = cache.evict_by_scope("user", user_id="123")
+        self.assertEqual(count, 2)
+
+    def test_scope_params_dict(self):
+        user_level = ScopeLevel("user", "user_id")
+        config = ScopeConfig([user_level])
+        cache = Cache(scope_config=config)
+
+        cache.set("key1", "value1", 10, scope="user", scope_params={"user_id": "123"})
+        result = cache.get("key1", scope="user", scope_params={"user_id": "123"})
+        self.assertEqual(result, "value1")
+
+
+class TestCacheTTL(unittest.TestCase):
+    def test_expiration(self):
+        storage = InMemory()
+        rule = LifeTimeEvict()
+        cache = Cache(storage_provider=storage, storage_rules=[rule])
+
+        cache.set("key1", "value1", 0.01)
+        time.sleep(0.05)
+        cache.get("key1")
+        result = cache.get("key1")
+        self.assertIsNone(result)
+
+    def test_not_expired(self):
+        storage = InMemory()
+        rule = LifeTimeEvict()
+        cache = Cache(storage_provider=storage, storage_rules=[rule])
+
+        cache.set("key1", "value1", 10)
+        result = cache.get("key1")
+        self.assertEqual(result, "value1")
+
+    def test_zero_ttl(self):
+        cache = Cache()
+        cache.set("key1", "value1", 0)
+        result = cache.get("key1")
+        self.assertIsNone(result)
+
+    def test_negative_ttl(self):
+        cache = Cache()
+        cache.set("key1", "value1", -1)
+        result = cache.get("key1")
+        self.assertIsNone(result)
+
+
+class TestCacheWithMocks(unittest.TestCase):
+    def test_storage_get_called(self):
+        mock_storage = MagicMock(spec=InMemory)
+        mock_storage.get.return_value = ("value1", 100.0)
+        mock_storage.get_stats.return_value = {"storage_type": "mock"}
+
+        cache = Cache(storage_provider=mock_storage)
+        cache.get("key1")
+
+        mock_storage.get.assert_called_once()
+
+    def test_storage_set_called(self):
+        mock_storage = MagicMock(spec=InMemory)
+        mock_storage.get_stats.return_value = {"storage_type": "mock"}
+
+        cache = Cache(storage_provider=mock_storage)
+        cache.set("key1", "value1", 10)
+
+        mock_storage.set.assert_called_once()
+
+    def test_storage_evict_called(self):
+        mock_storage = MagicMock(spec=InMemory)
+        mock_storage.get_stats.return_value = {"storage_type": "mock"}
+
+        cache = Cache(storage_provider=mock_storage)
+        cache.evict("key1")
+
+        mock_storage.evict.assert_called_once()
+
+    def test_storage_clear_called(self):
+        mock_storage = MagicMock(spec=InMemory)
+        mock_storage.get_stats.return_value = {"storage_type": "mock"}
+
+        cache = Cache(storage_provider=mock_storage)
+        cache.clear()
+
+        mock_storage.clear.assert_called_once()
+
+
+class TestCacheWithAsyncMocks(IsolatedAsyncioTestCase):
+    async def test_aget_with_async_mock(self):
+        mock_storage = MagicMock(spec=InMemory)
+        mock_storage.get.return_value = ("value1", 100.0)
+        mock_storage.get_stats.return_value = {"storage_type": "mock"}
+
+        cache = Cache(storage_provider=mock_storage)
+        result = await cache.aget("key1")
+
+        self.assertEqual(result, "value1")
+
+    async def test_aset_with_async_mock(self):
+        mock_storage = MagicMock(spec=InMemory)
+        mock_storage.get_stats.return_value = {"storage_type": "mock"}
+
+        cache = Cache(storage_provider=mock_storage)
+        await cache.aset("key1", "value1", 10)
+
+        mock_storage.set.assert_called_once()

@@ -1,109 +1,100 @@
-import logging
-import threading
-from collections import defaultdict
-from typing import DefaultDict, Dict, List, Optional
+import time
+from typing import Any, Dict, List, Optional, Union
 
-from cache_types import _CacheKey, _CacheValue
 from protocols.storage_provider import IStorageProvider
+from utils.cache_types import _CacheValue
 
 
 class InMemory(IStorageProvider):
     """
-    Thread-safe, in-memory implementation of the IStorageProvider.
+    Implements an in-memory storage provider using a simple Python dictionary.
 
-    Uses key-based locks for high-concurrency atomic operations.
-    Optimized with __slots__ for memory efficiency.
+    This class provides a non-persistent storage mechanism. It is suitable for
+    caching data that does not need to survive application restarts.
+
+    Attributes:
+        _cache (Dict[str, _CacheValue]): The internal dictionary storage.
     """
 
-    __slots__ = ("_cache", "_key_locks", "_instance_lock")
+    __slots__ = "_cache"
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initializes the in-memory storage."""
-        self._cache: Dict[_CacheKey, _CacheValue] = {}
-        self._key_locks: DefaultDict[_CacheKey, threading.Lock] = defaultdict(threading.Lock)
-        self._instance_lock = threading.Lock()
-        logging.info("InMemoryStorageProvider initialized.")
+        self._cache: Dict[str, _CacheValue] = {}
 
-    def get(self, key: _CacheKey) -> Optional[_CacheValue]:
-        """
-        Atomically gets a value tuple (value, expiry) from memory.
-
-        Args:
-            key (_CacheKey): The internal key to get.
+    def get_all_keys(self) -> List[str]:
+        """Retrieves a list of all keys currently stored in the cache.
 
         Returns:
-            Optional[_CacheValue]: The stored tuple, or None.
+            List[str]: A list containing all active keys.
         """
-        try:
-            with self._key_locks[key]:
-                return self._cache.get(key)
-        except Exception as e:
-            logging.error(f"Error getting key {key}: {e}")
-            return None
+        return list(self._cache.keys())
 
-    def get_value_no_lock(self, key: _CacheKey) -> Optional[_CacheValue]:
-        """
-        Performs a non-locking ("dirty") read for the cleanup loop.
-
-        Args:
-            key (_CacheKey): The internal key to look up.
+    def get_stats(self) -> dict:
+        """Retrieves current statistics about the storage usage.
 
         Returns:
-            Optional[_CacheValue]: The stored tuple (value, expiry) or None.
+            dict: A dictionary containing:
+                - 'storage_type': The name of the storage backend ('in_memory').
+                - 'total_keys': Current number of items stored.
+                - 'max_size': The configured maximum capacity.
         """
-        return self._cache.get(key)
+        return {
+            "storage_type": "in_memory",
+            "total_keys": len(self._cache),
+        }
 
-    def set(self, key: _CacheKey, value: _CacheValue) -> None:
-        """
-        Atomically sets a value tuple (value, expiry) in memory.
-
-        Args:
-            key (_CacheKey): The internal key to set.
-            value (_CacheValue): The (value, expiry) tuple to store.
-        """
-        try:
-            with self._key_locks[key]:
-                self._cache[key] = value
-        except Exception as e:
-            logging.error(f"Error setting key {key}: {e}")
-            raise
-
-    def evict(self, key: _CacheKey) -> None:
-        """
-        Atomically evicts a key from memory and cleans up its lock.
+    def get(self, key: str) -> Optional[_CacheValue]:
+        """Retrieves a value and its expiration metadata from the cache.
 
         Args:
-            key (_CacheKey): The internal key to evict.
-        """
-        try:
-            with self._key_locks[key]:
-                if key in self._cache:
-                    del self._cache[key]
-
-                if key in self._key_locks:
-                    del self._key_locks[key]
-        except Exception as e:
-            logging.error(f"Error evicting key {key}: {e}")
-
-    def get_all_keys(self) -> List[_CacheKey]:
-        """
-        Atomically gets a copy of all keys in memory.
+            key (str): The identifier of the item to retrieve.
 
         Returns:
-            List[_CacheKey]: A list of all cache keys.
+            Optional[_CacheValue]: A tuple containing the value and the absolute expiration timestamp,
+            or None if the key does not exist.
         """
-        try:
-            with self._instance_lock:
-                return list(self._cache.keys())
-        except Exception as e:
-            logging.error(f"Error getting all keys: {e}")
-            return []
+        return self._cache.get(key, None)
+
+    def set(self, key: str, value: Any, ttl_seconds: Union[int, float]) -> None:
+        """Stores a value in the cache with a specific Time-To-Live (TTL). Calculates the absolute expiration time
+        based on `time.monotonic()`.
+
+        Args:
+            key (str): The identifier for the item.
+            value (Any): The actual data to store.
+            ttl_seconds (Union[int, float]): Duration in seconds until the item expires.
+        """
+        self._cache[key] = (value, time.monotonic() + ttl_seconds)
+
+    def evict(self, key: str) -> None:
+        """Removes a specific key from the cache. If the key does not exist, this operation does nothing (idempotent).
+
+        Args:
+            key (str): The identifier of the item to remove.
+        """
+        self._cache.pop(key, None)
 
     def clear(self) -> None:
-        """Atomically clears the entire in-memory storage."""
-        try:
-            with self._instance_lock:
-                self._cache.clear()
-                self._key_locks.clear()
-        except Exception as e:
-            logging.error(f"Error clearing storage: {e}")
+        """Removes all items from the cache, resetting the storage."""
+        self._cache.clear()
+
+    async def aget(self, key: str) -> Optional[_CacheValue]:
+        """Asynchronous wrapper for the `get` method."""
+        return self.get(key)
+
+    async def aset(self, key: str, value: Any, ttl_seconds: Union[int, float]) -> None:
+        """Asynchronous wrapper for the `set` method."""
+        self.set(key, value, ttl_seconds)
+
+    async def aevict(self, key: str) -> None:
+        """Asynchronous wrapper for the `evict` method."""
+        self.evict(key)
+
+    async def aget_all_keys(self) -> List[str]:
+        """Asynchronous wrapper for the `get_all_keys` method."""
+        return self.get_all_keys()
+
+    async def aclear(self) -> None:
+        """Asynchronous wrapper for the `clear` method."""
+        self.clear()

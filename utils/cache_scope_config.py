@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from protocols.scope import IScope
-
 
 @dataclass
 class ScopeLevel:
@@ -19,7 +17,7 @@ class ScopeLevel:
             self.children = []
 
 
-class ScopeConfig(IScope):
+class ScopeConfig:
     """
     Hierarchical scope configuration for cache with multiple tree support.
 
